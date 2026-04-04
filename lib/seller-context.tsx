@@ -253,7 +253,7 @@ export function SellerProvider({ children }: { children: ReactNode }) {
 
   const updateSellerProfile = (updatedSeller: SellerUser) => {
     setSeller(updatedSeller);
-    localStorage.setItem(SELLER_KEY, JSON.stringify(updatedSeller));
+    localStorage.setItem(SELLER_STORAGE_KEY, JSON.stringify(updatedSeller));
     
     // Also update in allSellers list
     const updatedAllSellers = allSellers.map((s) => (s.id === updatedSeller.id ? updatedSeller : s));
