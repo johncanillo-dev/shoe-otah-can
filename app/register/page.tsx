@@ -28,7 +28,7 @@ export default function RegisterPage() {
       return;
     }
 
-    const result = register(email, password, name, city);
+    const result = await register(email, password, name, city);
     if (result.success) {
       setStatus("Account created successfully! Redirecting to shop...");
       setTimeout(() => {

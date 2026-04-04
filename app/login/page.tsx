@@ -25,7 +25,7 @@ export default function LoginPage() {
     const email = String(formData.get("email") ?? "").trim();
     const password = String(formData.get("password") ?? "");
 
-    const result = login(email, password);
+    const result = await login(email, password);
     if (result.success) {
       setStatus("Login successful. Redirecting to shop...");
       setTimeout(() => {
