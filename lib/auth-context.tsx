@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, FC } from "react";
-import { supabase } from "./supabase";
+import { supabase } from "./supabase.js";
 
 export interface User {
   id: string;
