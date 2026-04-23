@@ -301,14 +301,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Try Supabase first
       let foundUser = null;
       try {
-        const { data, error } = await supabase
-          .from("users")
-          .select("*")
-          .eq("email", email.toLowerCase())
-          .single();
+        if (supabase) {
+          const { data, error } = await supabase
+            .from("users")
+            .select("*")
+            .eq("email", email.toLowerCase())
+            .single();
 
-        if (data && !error) {
-          foundUser = data;
+          if (data && !error) {
+            foundUser = data;
+          }
         }
       } catch (error) {
         console.warn("Supabase query failed, trying local fallback:", error);
