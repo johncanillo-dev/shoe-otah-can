@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadUserFromSupabase = async () => {
     try {
       const sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
-      if (sessionToken) {
+      if (sessionToken && supabase) {
         // Query Supabase for user with this session
         const { data, error } = await supabase
           .from("users")
