@@ -1,9 +1,4 @@
-import { createBrowserClient } from "@supabase/ssr";
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-);
+import { createSupabaseBrowserClient } from "./supabase/client";
 
 export type Product = {
   id: string;
@@ -18,6 +13,7 @@ export type Product = {
 // Fetch all products
 export async function fetchProducts(): Promise<Product[]> {
   try {
+    const supabase = createSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("shoe-otah")
       .select("*")
@@ -38,6 +34,7 @@ export async function fetchProducts(): Promise<Product[]> {
 // Fetch single product by ID
 export async function fetchProductById(id: string): Promise<Product | null> {
   try {
+    const supabase = createSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("shoe-otah")
       .select("*")
@@ -59,6 +56,7 @@ export async function fetchProductById(id: string): Promise<Product | null> {
 // Add new product
 export async function addProduct(product: Omit<Product, "id" | "created_at">): Promise<Product | null> {
   try {
+    const supabase = createSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("shoe-otah")
       .insert({
@@ -86,6 +84,7 @@ export async function addProduct(product: Omit<Product, "id" | "created_at">): P
 // Update product
 export async function updateProduct(id: string, updates: Partial<Product>): Promise<Product | null> {
   try {
+    const supabase = createSupabaseBrowserClient();
     const { data, error } = await supabase
       .from("shoe-otah")
       .update({
@@ -114,6 +113,7 @@ export async function updateProduct(id: string, updates: Partial<Product>): Prom
 // Delete product
 export async function deleteProduct(id: string): Promise<boolean> {
   try {
+    const supabase = createSupabaseBrowserClient();
     const { error } = await supabase
       .from("shoe-otah")
       .delete()
@@ -137,6 +137,7 @@ export function subscribeToProducts(
   onError?: (error: any) => void
 ) {
   try {
+    const supabase = createSupabaseBrowserClient();
     const subscription = supabase
       .channel("public:shoe-otah")
       .on(
