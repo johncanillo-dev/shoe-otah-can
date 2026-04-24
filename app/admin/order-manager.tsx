@@ -623,7 +623,6 @@ export function OrderManager() {
               </div>
             )}
           </div>
-        </div>
         </>
       )}
 
