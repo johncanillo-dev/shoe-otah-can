@@ -1,5 +1,4 @@
-import { createBrowserClient } from "@supabase/ssr";
-import { getSupabaseEnv } from "@/lib/supabase/env";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   try {
@@ -14,8 +13,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const { supabaseUrl, supabasePublishableKey } = getSupabaseEnv();
-    const supabase = createBrowserClient(supabaseUrl, supabasePublishableKey);
+    const supabase = await createSupabaseServerClient();
+    
+    if (!supabase) {
+      return Response.json(
+        { success: false, error: "Database not configured" },
+        { status: 500 }
+      );
+    }
 
     // Simple hash function
     const simpleHash = (input: string): string => {
