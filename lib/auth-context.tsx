@@ -352,6 +352,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error("Supabase login error:", error);
         return { success: false, error: "Login failed. Please check your credentials." };
       }
+    } catch (error) {
+      console.error("Login error:", error);
+      return { success: false, error: "Login failed. Please try again." };
+    }
   };
 
   const logout = () => {
