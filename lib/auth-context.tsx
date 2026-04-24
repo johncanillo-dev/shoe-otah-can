@@ -439,17 +439,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     const sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
     
-    // Remove session from Supabase
+    // Remove session from Supabase (fire and forget)
     if (sessionToken && supabase) {
-      try {
-        supabase
-          .from("sessions")
-          .update({ is_active: false })
-          .eq("session_token", sessionToken)
-          .catch((error) => console.error("Error deactivating session:", error));
-      } catch (error) {
-        console.error("Error deactivating session:", error);
-      }
+      supabase
+        .from("sessions")
+        .update({ is_active: false })
+        .eq("session_token", sessionToken)
+        .then(() => {
+          // Session deactivated successfully
+        })
+        .catch((error: any) => console.error("Error deactivating session:", error));
     }
 
     setUser(null);
