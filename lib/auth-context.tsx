@@ -298,86 +298,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Hash the provided password with same salt
       const hashedInput = simpleHash(password + email);
 
-      // Try Supabase first
-      let foundUser = null;
+      // Supabase is the source of truth - only check cloud database
+      if (!supabase) {
+        return { success: false, error: "Supabase not configured. Please try again." };
+      }
+
       try {
-        if (supabase) {
-          const { data, error } = await supabase
-            .from("users")
-            .select("*")
-            .eq("email", email.toLowerCase())
-            .single();
+        const { data: foundUser, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("email", email.toLowerCase())
+          .single();
 
-          if (data && !error) {
-            foundUser = data;
-          }
+        if (error || !foundUser) {
+          return { success: false, error: "Account not found. Please register first via the app." };
         }
+
+        // Verify password matches
+        if (foundUser.password && foundUser.password !== hashedInput) {
+          return { success: false, error: "Incorrect password" };
+        }
+
+        // Create user session
+        const userData: User = {
+          id: foundUser.id,
+          email: foundUser.email,
+          name: foundUser.name,
+          city: foundUser.city,
+          createdAt: foundUser.createdAt,
+          isActive: foundUser.isActive,
+        };
+
+        setUser(userData);
+        setIsAdmin(false);  // Ensure regular users are not admins
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+        localStorage.setItem(SESSION_TOKEN_KEY, foundUser.id); // Store session token
+        localStorage.removeItem(ADMIN_KEY);  // Remove admin flag for regular users
+
+        // Update local allUsers list for fallback
+        const userIndex = allUsers.findIndex((u) => u.id === foundUser.id);
+        let updated;
+        if (userIndex >= 0) {
+          updated = [...allUsers];
+          updated[userIndex] = userData;
+        } else {
+          updated = [...allUsers, userData];
+        }
+        setAllUsers(updated);
+        localStorage.setItem(ALL_USERS_KEY, JSON.stringify(updated));
+
+        return { success: true };
       } catch (error) {
-        console.warn("Supabase query failed, trying local fallback:", error);
+        console.error("Supabase login error:", error);
+        return { success: false, error: "Login failed. Please check your credentials." };
       }
-
-      // Fallback: Check local users
-      if (!foundUser) {
-        const localUsers = JSON.parse(localStorage.getItem(ALL_USERS_KEY) || "[]");
-        const localUser = localUsers.find(
-          (u: User) => u.email.toLowerCase() === email.toLowerCase()
-        );
-
-        if (localUser) {
-          // Check password against stored hash
-          const userPasswords = JSON.parse(
-            localStorage.getItem("user_passwords") || "{}"
-          );
-          const storedHash = userPasswords[email.toLowerCase()];
-
-          if (storedHash === hashedInput) {
-            foundUser = localUser;
-          }
-        }
-      }
-
-      if (!foundUser) {
-        return { success: false, error: "Account not found. Please register first" };
-      }
-
-      // Verify password matches
-      if (foundUser.password && foundUser.password !== hashedInput) {
-        return { success: false, error: "Incorrect password" };
-      }
-
-      // Create user session
-      const userData: User = {
-        id: foundUser.id,
-        email: foundUser.email,
-        name: foundUser.name,
-        city: foundUser.city,
-        createdAt: foundUser.createdAt,
-        isActive: foundUser.isActive,
-      };
-
-      setUser(userData);
-      setIsAdmin(false);  // Ensure regular users are not admins
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-      localStorage.setItem(SESSION_TOKEN_KEY, foundUser.id); // Store session token
-      localStorage.removeItem(ADMIN_KEY);  // Remove admin flag for regular users
-
-      // Update local allUsers list for fallback
-      const userIndex = allUsers.findIndex((u) => u.id === foundUser.id);
-      let updated;
-      if (userIndex >= 0) {
-        updated = [...allUsers];
-        updated[userIndex] = userData;
-      } else {
-        updated = [...allUsers, userData];
-      }
-      setAllUsers(updated);
-      localStorage.setItem(ALL_USERS_KEY, JSON.stringify(updated));
-
-      return { success: true };
-    } catch (error) {
-      console.error("Login error:", error);
-      return { success: false, error: "Login failed. Please try again." };
-    }
   };
 
   const logout = () => {
