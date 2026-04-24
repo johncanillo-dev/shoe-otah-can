@@ -85,24 +85,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
       if (sessionToken && supabase) {
-        // Query Supabase for user with this session
-        const { data, error } = await supabase
-          .from("users")
-          .select("*")
-          .eq("id", sessionToken)
+        // Validate session from sessions table (cross-device support)
+        const { data: sessionData, error: sessionError } = await supabase
+          .from("sessions")
+          .select("user_id, is_active, expires_at")
+          .eq("session_token", sessionToken)
           .single();
 
-        if (data && !error) {
-          const userData: User = {
-            id: data.id,
-            email: data.email,
-            name: data.name,
-            city: data.city,
-            createdAt: data.createdAt,
-            isActive: data.isActive,
+        if (sessionError || !sessionData || !sessionData.is_active) {
+          console.log("Session invalid or expired");
+          logout();
+          return;
+        }
+
+        // Check if session expired
+        if (sessionData.expires_at && new Date(sessionData.expires_at) < new Date()) {
+          console.log("Session expired");
+          logout();
+          return;
+        }
+
+        // Query user data from users table
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", sessionData.user_id)
+          .single();
+
+        if (userData && !userError) {
+          const user: User = {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            city: userData.city,
+            createdAt: userData.createdAt,
+            isActive: userData.isActive,
           };
-          setUser(userData);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+          setUser(user);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+
+          // Update last activity timestamp
+          await supabase
+            .from("sessions")
+            .update({ last_activity: new Date().toISOString() })
+            .eq("session_token", sessionToken);
         }
       }
     } catch (error) {
@@ -344,6 +370,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { success: false, error: "Incorrect password" };
         }
 
+        // Create a unique session token
+        const sessionToken = crypto.randomUUID 
+          ? crypto.randomUUID() 
+          : Date.now().toString() + Math.random();
+
+        // Get device info
+        const deviceName = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop';
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30); // 30-day session
+
+        // Create session record in Supabase
+        const { error: sessionInsertError } = await supabase
+          .from("sessions")
+          .insert([{
+            user_id: foundUser.id,
+            session_token: sessionToken,
+            device_name: deviceName,
+            device_type: typeof navigator !== 'undefined' && navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop',
+            ip_address: null,
+            expires_at: expiresAt.toISOString(),
+            is_active: true
+          }]);
+
+        if (sessionInsertError) {
+          console.error("Failed to create session:", sessionInsertError);
+        }
+
         // Create user session
         const userData: User = {
           id: foundUser.id,
@@ -357,7 +410,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(userData);
         setIsAdmin(false);  // Ensure regular users are not admins
         localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-        localStorage.setItem(SESSION_TOKEN_KEY, foundUser.id); // Store session token
+        localStorage.setItem(SESSION_TOKEN_KEY, sessionToken); // Store session token
         localStorage.removeItem(ADMIN_KEY);  // Remove admin flag for regular users
 
         // Update local allUsers list for fallback
@@ -384,6 +437,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    const sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
+    
+    // Remove session from Supabase
+    if (sessionToken && supabase) {
+      try {
+        supabase
+          .from("sessions")
+          .update({ is_active: false })
+          .eq("session_token", sessionToken)
+          .catch((error) => console.error("Error deactivating session:", error));
+      } catch (error) {
+        console.error("Error deactivating session:", error);
+      }
+    }
+
     setUser(null);
     setIsAdmin(false);
     localStorage.removeItem(STORAGE_KEY);
