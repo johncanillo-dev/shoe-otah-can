@@ -311,7 +311,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .single();
 
         if (error || !foundUser) {
-          return { success: false, error: "Account not found. Please register first via the app." };
+          // Fallback: Check localStorage if Supabase fails
+          const localUsers = JSON.parse(localStorage.getItem(ALL_USERS_KEY) || "[]");
+          const localUser = localUsers.find((u: User) => u.email.toLowerCase() === email.toLowerCase());
+          
+          if (!localUser) {
+            return { success: false, error: "Account not found. Please register first via the app." };
+          }
+
+          // Verify password against local hash
+          const userPasswords = JSON.parse(localStorage.getItem("user_passwords") || "{}");
+          const storedHash = userPasswords[email.toLowerCase()];
+          
+          if (!storedHash || storedHash !== hashedInput) {
+            return { success: false, error: "Incorrect password" };
+          }
+
+          // Create session from local user
+          const userData: User = {
+            id: localUser.id,
+            email: localUser.email,
+            name: localUser.name,
+            city: localUser.city,
+            createdAt: localUser.createdAt,
+            isActive: localUser.isActive,
+          };
+
+          setUser(userData);
+          setIsAdmin(false);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+          localStorage.setItem(SESSION_TOKEN_KEY, localUser.id);
+          localStorage.removeItem(ADMIN_KEY);
+
+          const userIndex = allUsers.findIndex((u) => u.id === localUser.id);
+          let updated;
+          if (userIndex >= 0) {
+            updated = [...allUsers];
+            updated[userIndex] = userData;
+          } else {
+            updated = [...allUsers, userData];
+          }
+          setAllUsers(updated);
+          localStorage.setItem(ALL_USERS_KEY, JSON.stringify(updated));
+
+          return { success: true };
         }
 
         // Verify password matches
