@@ -1,21 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useOrder, type Order } from "@/lib/order-context";
+import { useOrder, type Order, type DatabaseOrder } from "@/lib/order-context";
+import { useAuth } from "@/lib/auth-context";
 
 export function OrderManager() {
-  const { orders } = useOrder();
+  const { orders, databaseOrders, getAllDatabaseOrders, updateDatabaseOrderStatus } = useOrder();
+  const { isAdmin } = useAuth();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "confirmed" | "shipped" | "delivered">("all");
+  const [dbStatusFilter, setDbStatusFilter] = useState<"all" | "pending" | "processing" | "shipped" | "delivered" | "cancelled">("all");
   const [isLoading, setIsLoading] = useState(true);
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [activeTab, setActiveTab] = useState<"checkout" | "orders">("orders");
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsLoading(false);
-    setAllOrders(orders);
-  }, [orders]);
+    const loadData = async () => {
+      setIsLoading(true);
+      await getAllDatabaseOrders();
+      setAllOrders(orders);
+      setIsLoading(false);
+    };
+    loadData();
+  }, [orders, getAllDatabaseOrders]);
 
   useEffect(() => {
     if (selectedOrder) {
@@ -27,6 +37,10 @@ export function OrderManager() {
   const filteredOrders = statusFilter === "all" 
     ? allOrders 
     : allOrders.filter(order => order.status === statusFilter);
+
+  const filteredDatabaseOrders = dbStatusFilter === "all"
+    ? databaseOrders
+    : databaseOrders.filter(order => order.status === dbStatusFilter);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -45,6 +59,17 @@ export function OrderManager() {
 
   const getStatusLabel = (status: string) => {
     return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  const handleDatabaseStatusUpdate = async (orderId: string, newStatus: string) => {
+    setUpdatingOrderId(orderId);
+    const result = await updateDatabaseOrderStatus(orderId, newStatus);
+    if (result.success) {
+      await getAllDatabaseOrders();
+    } else {
+      alert(result.error || "Failed to update order");
+    }
+    setUpdatingOrderId(null);
   };
 
   const handleStatusUpdate = (orderId: string, newStatus: "pending" | "confirmed" | "shipped" | "delivered") => {
@@ -104,9 +129,153 @@ export function OrderManager() {
 
   return (
     <>
+      {/* Tabs */}
+      <div style={{ display: "flex", borderBottom: "2px solid var(--line)", marginBottom: "2rem" }}>
+        <button
+          onClick={() => setActiveTab("orders")}
+          style={{
+            padding: "1rem 2rem",
+            backgroundColor: activeTab === "orders" ? "var(--accent)" : "transparent",
+            color: activeTab === "orders" ? "white" : "inherit",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "1rem",
+            fontWeight: "600",
+            borderRadius: "6px 6px 0 0",
+            marginRight: "0.5rem",
+          }}
+        >
+          Database Orders ({databaseOrders.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("checkout")}
+          style={{
+            padding: "1rem 2rem",
+            backgroundColor: activeTab === "checkout" ? "var(--accent)" : "transparent",
+            color: activeTab === "checkout" ? "white" : "inherit",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "1rem",
+            fontWeight: "600",
+            borderRadius: "6px 6px 0 0",
+          }}
+        >
+          Checkout Orders ({allOrders.length})
+        </button>
+      </div>
+
+      {/* Database Orders Tab */}
+      {activeTab === "orders" && (
+        <div className="orders-section">
+          <div className="section-header">
+            <h2>📦 Database Orders</h2>
+            <div className="filter-buttons">
+              {(["all", "pending", "processing", "shipped", "delivered", "cancelled"] as const).map((filter) => (
+                <button
+                  key={filter}
+                  className={`filter-btn ${dbStatusFilter === filter ? "active" : ""}`}
+                  onClick={() => setDbStatusFilter(filter)}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    borderRadius: "6px",
+                    border: "1px solid var(--line)",
+                    background: dbStatusFilter === filter ? "var(--accent)" : "transparent",
+                    color: dbStatusFilter === filter ? "white" : "inherit",
+                    cursor: "pointer",
+                    fontSize: "0.9rem",
+                    marginRight: "0.5rem",
+                  }}
+                >
+                  {filter === "all" ? "All" : getStatusLabel(filter)}
+                  {filter !== "all" && ` (${databaseOrders.filter(o => o.status === filter).length})`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {filteredDatabaseOrders.length === 0 ? (
+            <div style={{ padding: "2rem", textAlign: "center", color: "#5e584d" }}>
+              <p>No orders found</p>
+            </div>
+          ) : (
+            <div className="orders-table-wrapper">
+              <table className="orders-table">
+                <thead>
+                  <tr>
+                    <th>Order ID</th>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Address</th>
+                    <th>Date</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDatabaseOrders.map((order) => (
+                    <tr key={order.id}>
+                      <td style={{ fontWeight: "600", fontSize: "0.85rem" }}>{order.id.substring(0, 8)}</td>
+                      <td>{order.productName}</td>
+                      <td>{order.quantity}</td>
+                      <td style={{ fontWeight: "600" }}>₱{order.totalAmount.toFixed(2)}</td>
+                      <td>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "0.4rem 0.8rem",
+                            borderRadius: "999px",
+                            backgroundColor: 
+                              order.status === "pending" ? "#ff9800" :
+                              order.status === "processing" ? "#2196f3" :
+                              order.status === "shipped" ? "#9c27b0" :
+                              order.status === "delivered" ? "#4caf50" : "#f44336",
+                            color: "white",
+                            fontSize: "0.85rem",
+                            fontWeight: "600",
+                          }}
+                        >
+                          {order.status}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: "0.85rem" }}>{order.deliveryAddress.substring(0, 20)}...</td>
+                      <td style={{ fontSize: "0.85rem" }}>{new Date(order.createdAt).toLocaleDateString()}</td>
+                      <td>
+                        <select
+                          value={order.status}
+                          onChange={(e) => handleDatabaseStatusUpdate(order.id, e.target.value)}
+                          disabled={updatingOrderId === order.id}
+                          style={{
+                            padding: "0.4rem 0.8rem",
+                            borderRadius: "6px",
+                            border: "1px solid var(--line)",
+                            backgroundColor: "white",
+                            cursor: updatingOrderId === order.id ? "not-allowed" : "pointer",
+                            fontSize: "0.85rem",
+                          }}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="processing">Processing</option>
+                          <option value="shipped">Shipped</option>
+                          <option value="delivered">Delivered</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Checkout Orders Tab */}
+      {activeTab === "checkout" && (
+        <>
       <div className="orders-section">
         <div className="section-header">
-          <h2>📦 Customer Orders & Checkouts</h2>
+          <h2>📦 Checkout Orders</h2>
           <div className="filter-buttons">
             {(["all", "pending", "confirmed", "shipped", "delivered"] as const).map((filter) => (
               <button
@@ -455,6 +624,7 @@ export function OrderManager() {
             )}
           </div>
         </div>
+        </>
       )}
 
       <style jsx>{`
