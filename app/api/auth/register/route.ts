@@ -34,13 +34,12 @@ export async function POST(request: Request) {
     };
 
     // Check if email already exists
-    const { data: existingUser, error: queryError } = await supabase
+    const { data: existingUsers } = await supabase
       .from("users")
       .select("id")
-      .eq("email", email.toLowerCase())
-      .single();
+      .eq("email", email.toLowerCase());
 
-    if (existingUser) {
+    if (existingUsers && existingUsers.length > 0) {
       return Response.json(
         { success: false, error: "Email already registered" },
         { status: 409 }
