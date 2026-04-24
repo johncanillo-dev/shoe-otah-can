@@ -185,96 +185,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // Try to register via API first
-      try {
-        const response = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, name, city }),
-        });
+      // Hash password
+      const hashedPassword = simpleHash(password + email);
 
-        if (response.ok) {
-          const result = await response.json();
+      // Try to register directly to Supabase first (if available)
+      if (supabase) {
+        try {
+          // Check if email already exists
+          const { data: existingUsers } = await supabase
+            .from("users")
+            .select("id")
+            .eq("email", email.toLowerCase());
 
-          if (result.success) {
-            // Set local user session
+          if (existingUsers && existingUsers.length > 0) {
+            return { success: false, error: "Email already registered" };
+          }
+
+          // Create new user in Supabase
+          const newUserId = crypto.randomUUID
+            ? crypto.randomUUID()
+            : Date.now().toString();
+
+          const { data, error } = await supabase.from("users").insert([
+            {
+              id: newUserId,
+              email: email.toLowerCase(),
+              password: hashedPassword,
+              name,
+              city: city || null,
+              createdAt: new Date().toISOString(),
+              isActive: true,
+            },
+          ]);
+
+          if (!error) {
+            // Success - user created in Supabase
             const userData: User = {
-              id: result.user.id,
-              email: result.user.email,
-              name: result.user.name,
-              city: result.user.city,
+              id: newUserId,
+              email: email.toLowerCase(),
+              name,
+              city: city || undefined,
               createdAt: new Date().toISOString(),
               isActive: true,
             };
 
             setUser(userData);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-            localStorage.setItem(SESSION_TOKEN_KEY, result.user.id);
-            setIsAdmin(false);  // New users are not admins
-            localStorage.removeItem(ADMIN_KEY);  // Remove any admin flag
+            localStorage.setItem(SESSION_TOKEN_KEY, newUserId);
+            setIsAdmin(false);
+            localStorage.removeItem(ADMIN_KEY);
 
-            // Update local allUsers list for fallback
+            // Update local allUsers list
             const updated = [...allUsers, userData];
             setAllUsers(updated);
             localStorage.setItem(ALL_USERS_KEY, JSON.stringify(updated));
 
+            console.log("User registered successfully in Supabase");
             return { success: true };
+          } else {
+            console.error("Supabase insert error:", error);
+            return { success: false, error: "Registration failed. Please try again." };
           }
+        } catch (supabaseError) {
+          console.error("Supabase registration error:", supabaseError);
+          return { success: false, error: "Registration failed. Please try again." };
         }
-      } catch (apiError) {
-        console.warn("API registration failed, using localStorage fallback:", apiError);
       }
 
-      // Fallback: Register locally if API fails
-      console.log("Using localStorage fallback for registration");
-
-      // Check local users first
-      const localUsers = JSON.parse(localStorage.getItem(ALL_USERS_KEY) || "[]");
-      const emailExists = localUsers.some(
-        (u: User) => u.email.toLowerCase() === email.toLowerCase()
-      );
-
-      if (emailExists) {
-        return { success: false, error: "Email already registered" };
-      }
-
-      // Hash password
-      const hashedPassword = simpleHash(password + email);
-
-      // Create new user locally
-      const newUserId = crypto.randomUUID
-        ? crypto.randomUUID()
-        : Date.now().toString();
-
-      const userData: User = {
-        id: newUserId,
-        email: email.toLowerCase(),
-        name,
-        city: city || undefined,
-        createdAt: new Date().toISOString(),
-        isActive: true,
-      };
-
-      // Save user locally
-      setUser(userData);
-      setIsAdmin(false);  // New users are not admins
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-      localStorage.setItem(SESSION_TOKEN_KEY, newUserId);
-      localStorage.removeItem(ADMIN_KEY);  // Remove any admin flag
-
-      // Store password locally for login
-      const userPasswords = JSON.parse(
-        localStorage.getItem("user_passwords") || "{}"
-      );
-      userPasswords[email.toLowerCase()] = hashedPassword;
-      localStorage.setItem("user_passwords", JSON.stringify(userPasswords));
-
-      // Update local allUsers list
-      const updated = [...allUsers, userData];
-      setAllUsers(updated);
-      localStorage.setItem(ALL_USERS_KEY, JSON.stringify(updated));
-
-      return { success: true };
+      // If Supabase not configured, return error
+      return { success: false, error: "Database not configured. Please try again." };
     } catch (error) {
       console.error("Registration error:", error);
       return { success: false, error: "Registration failed. Please try again." };
@@ -336,6 +315,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             createdAt: localUser.createdAt,
             isActive: localUser.isActive,
           };
+
+          // Sync this local user to Supabase
+          try {
+            const { error: syncError } = await supabase
+              .from("users")
+              .insert([
+                {
+                  id: localUser.id,
+                  email: localUser.email.toLowerCase(),
+                  password: storedHash,
+                  name: localUser.name,
+                  city: localUser.city || null,
+                  createdAt: localUser.createdAt,
+                  isActive: localUser.isActive,
+                },
+              ]);
+
+            if (!syncError) {
+              console.log("Synced local user to Supabase:", email);
+            } else if (syncError.code !== "23505") {
+              // 23505 is unique constraint violation - user already exists in Supabase
+              console.warn("Sync to Supabase failed:", syncError);
+            }
+          } catch (syncErr) {
+            console.warn("Could not sync to Supabase, continuing with local session:", syncErr);
+          }
 
           setUser(userData);
           setIsAdmin(false);
