@@ -217,72 +217,93 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Hash password
       const hashedPassword = simpleHash(password + email);
 
-      // Try to register directly to Supabase first (if available)
-      if (supabase) {
-        try {
-          // Check if email already exists
-          const { data: existingUsers } = await supabase
-            .from("users")
-            .select("id")
-            .eq("email", email.toLowerCase());
+      // Check if email already exists
+      const { data: existingUsers, error: checkError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("email", email.toLowerCase());
 
-          if (existingUsers && existingUsers.length > 0) {
-            return { success: false, error: "Email already registered" };
-          }
-
-          // Create new user in Supabase
-          const newUserId = crypto.randomUUID
-            ? crypto.randomUUID()
-            : Date.now().toString();
-
-          const { data, error } = await supabase.from("users").insert([
-            {
-              id: newUserId,
-              email: email.toLowerCase(),
-              password: hashedPassword,
-              name,
-              city: city || null,
-              createdAt: new Date().toISOString(),
-              isActive: true,
-            },
-          ]);
-
-          if (!error) {
-            // Success - user created in Supabase
-            const userData: User = {
-              id: newUserId,
-              email: email.toLowerCase(),
-              name,
-              city: city || undefined,
-              createdAt: new Date().toISOString(),
-              isActive: true,
-            };
-
-            setUser(userData);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-            localStorage.setItem(SESSION_TOKEN_KEY, newUserId);
-            setIsAdmin(false);
-            localStorage.removeItem(ADMIN_KEY);
-
-            // Update local allUsers list
-            const updated = [...allUsers, userData];
-            setAllUsers(updated);
-            localStorage.setItem(ALL_USERS_KEY, JSON.stringify(updated));
-
-            console.log("User registered successfully in Supabase");
-            return { success: true };
-          } else {
-            console.error("Supabase insert error:", error);
-            return { success: false, error: "Registration failed. Please try again." };
-          }
-        } catch (supabaseError) {
-          console.error("Supabase registration error:", supabaseError);
-          return { success: false, error: "Registration failed. Please try again." };
-        }
+      if (checkError) {
+        console.error("Error checking email:", checkError);
+        return { success: false, error: "Failed to check email. Please try again." };
       }
 
-      // If Supabase not configured, return error
-      return { success: false, error: "Database not configured. Please try again." };
+      if (existingUsers && existingUsers.length > 0) {
+        return { success: false, error: "Email already registered" };
+      }
+
+      // Create new user in Supabase
+      const newUserId = crypto.randomUUID
+        ? crypto.randomUUID()
+        : Date.now().toString();
+
+      const { error: userInsertError } = await supabase.from("users").insert([
+        {
+          id: newUserId,
+          email: email.toLowerCase(),
+          password: hashedPassword,
+          name,
+          city: city || null,
+          createdAt: new Date().toISOString(),
+          isActive: true,
+        },
+      ]);
+
+      if (userInsertError) {
+        console.error("Error creating user:", userInsertError);
+        return { success: false, error: "Failed to create account. Please try again." };
+      }
+
+      // Create a session record for the new user
+      const sessionToken = crypto.randomUUID 
+        ? crypto.randomUUID() 
+        : Date.now().toString() + Math.random();
+
+      const deviceName = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop';
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30); // 30-day session
+
+      // Create session record in Supabase
+      const { error: sessionError } = await supabase
+        .from("sessions")
+        .insert([{
+          user_id: newUserId,
+          session_token: sessionToken,
+          device_name: deviceName,
+          device_type: typeof navigator !== 'undefined' && navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop',
+          ip_address: null,
+          expires_at: expiresAt.toISOString(),
+          is_active: true
+        }]);
+
+      if (sessionError) {
+        console.error("Error creating session:", sessionError);
+        return { success: false, error: "Failed to create session. Please try again." };
+      }
+
+      // Success - user created and session established
+      const userData: User = {
+        id: newUserId,
+        email: email.toLowerCase(),
+        name,
+        city: city || undefined,
+        createdAt: new Date().toISOString(),
+        isActive: true,
+      };
+
+      setUser(userData);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+      localStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
+      setIsAdmin(false);
+      localStorage.removeItem(ADMIN_KEY);
+
+      // Update local allUsers list
+      const updated = [...allUsers, userData];
+      setAllUsers(updated);
+      localStorage.setItem(ALL_USERS_KEY, JSON.stringify(updated));
+
+      console.log("✅ User registered successfully");
+      return { success: true };
     } catch (error) {
       console.error("Registration error:", error);
       return { success: false, error: "Registration failed. Please try again." };
@@ -312,62 +333,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const { data: foundUser, error } = await supabase
+        const { data: foundUser, error: userError } = await supabase
           .from("users")
           .select("*")
           .eq("email", email.toLowerCase())
           .single();
 
-        if (error || !foundUser) {
-          // Fallback: Check localStorage if Supabase fails
-          const localUsers = JSON.parse(localStorage.getItem(ALL_USERS_KEY) || "[]");
-          const localUser = localUsers.find((u: User) => u.email.toLowerCase() === email.toLowerCase());
-          
-          if (!localUser) {
-            return { success: false, error: "Account not found. Please register first via the app." };
+        if (userError) {
+          console.error("Error finding user:", userError);
+          if (userError.code === 'PGRST116') {
+            return { success: false, error: "Account not found. Please register first." };
           }
+          return { success: false, error: "Failed to login. Please try again." };
+        }
 
-          // Verify password against local hash
-          const userPasswords = JSON.parse(localStorage.getItem("user_passwords") || "{}");
-          const storedHash = userPasswords[email.toLowerCase()];
-          
-          if (!storedHash || storedHash !== hashedInput) {
-            return { success: false, error: "Incorrect password" };
-          }
-
-          // Create session from local user
-          const userData: User = {
-            id: localUser.id,
-            email: localUser.email,
-            name: localUser.name,
-            city: localUser.city,
-            createdAt: localUser.createdAt,
-            isActive: localUser.isActive,
-          };
-
-          setUser(userData);
-          setIsAdmin(false);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-          localStorage.setItem(SESSION_TOKEN_KEY, localUser.id);
-          localStorage.removeItem(ADMIN_KEY);
-
-          const userIndex = allUsers.findIndex((u) => u.id === localUser.id);
-          let updated;
-          if (userIndex >= 0) {
-            updated = [...allUsers];
-            updated[userIndex] = userData;
-          } else {
-            updated = [...allUsers, userData];
-          }
-          setAllUsers(updated);
-          localStorage.setItem(ALL_USERS_KEY, JSON.stringify(updated));
-
-          return { success: true };
+        if (!foundUser) {
+          return { success: false, error: "Account not found. Please register first." };
         }
 
         // Verify password matches
-        if (foundUser.password && foundUser.password !== hashedInput) {
+        if (!foundUser.password || foundUser.password !== hashedInput) {
           return { success: false, error: "Incorrect password" };
+        }
+
+        // Verify account is active
+        if (!foundUser.isActive) {
+          return { success: false, error: "Account is inactive. Please contact support." };
         }
 
         // Create a unique session token
@@ -377,24 +368,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Get device info
         const deviceName = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop';
+        const deviceType = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop';
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 30); // 30-day session
 
         // Create session record in Supabase
-        const { error: sessionInsertError } = await supabase
+        const { error: sessionError } = await supabase
           .from("sessions")
           .insert([{
             user_id: foundUser.id,
             session_token: sessionToken,
             device_name: deviceName,
-            device_type: typeof navigator !== 'undefined' && navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop',
+            device_type: deviceType,
             ip_address: null,
             expires_at: expiresAt.toISOString(),
             is_active: true
           }]);
 
-        if (sessionInsertError) {
-          console.error("Failed to create session:", sessionInsertError);
+        if (sessionError) {
+          console.error("Failed to create session:", sessionError);
+          return { success: false, error: "Failed to create session. Please try again." };
         }
 
         // Create user session
@@ -439,16 +432,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     const sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
     
-    // Remove session from Supabase (fire and forget)
+    // Deactivate session in Supabase (fire and forget)
     if (sessionToken && supabase) {
-      supabase
-        .from("sessions")
-        .update({ is_active: false })
-        .eq("session_token", sessionToken)
-        .then(() => {
-          // Session deactivated successfully
-        })
-        .catch((error: any) => console.error("Error deactivating session:", error));
+      try {
+        // Don't await - let it happen in the background
+        void supabase
+          .from("sessions")
+          .update({ is_active: false })
+          .eq("session_token", sessionToken);
+      } catch (error) {
+        console.error("Error deactivating session:", error);
+      }
     }
 
     setUser(null);
