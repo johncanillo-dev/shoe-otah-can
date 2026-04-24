@@ -1,12 +1,6 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+// DEPRECATED: This file is no longer used. 
+// All authentication is now handled server-side via /api/auth/* endpoints.
+// Do not use this file. Use the server-side Supabase client instead.
+// @see /lib/supabase/server.ts
 
-let supabase: SupabaseClient | null = null;
-
-if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
-}
-
-export { supabase }
+export const supabase = null;
