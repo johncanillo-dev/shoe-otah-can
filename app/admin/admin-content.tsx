@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useOrder } from "@/lib/order-context";
 import { useSeller } from "@/lib/seller-context";
 import Map from "@/app/components/map";
+import { AdminDashboard } from "./admin-dashboard";
 import { CategoryManager } from "./category-manager";
 import { ProductManager } from "./product-manager";
 import { OrderManager } from "./order-manager";
@@ -67,20 +68,6 @@ export default function AdminContent() {
       }
     }
   }, [isAdmin, router]);
-
-  // Calculate stats
-  const totalOrders = orders.length;
-  const pendingOrders = orders.filter(o => o.status === "pending").length;
-  const shippedOrders = orders.filter(o => o.status === "shipped").length;
-  const deliveredOrders = orders.filter(o => o.status === "delivered").length;
-  const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
-  const totalSellers = allSellers.length;
-  const activeSellers = allSellers.filter(s => s.isActive).length;
-  const inactiveSellers = totalSellers - activeSellers;
-  const totalSellerProducts = allSellerProducts.length;
-  const pendingProducts = getPendingProducts().length;
-  const approvedProducts = getApprovedProducts().length;
-  const totalUsers = allUsers.filter(u => u.id !== "admin-001").length;
 
   if (isLoading) {
     return (
@@ -179,48 +166,7 @@ export default function AdminContent() {
 
       {/* Dashboard Tab */}
       {activeTab === "dashboard" && (
-        <>
-          <div className="admin-cards">
-            <article>
-              <h2>👥 Total Users</h2>
-              <p style={{ fontSize: "1.5rem", fontWeight: "600", color: "var(--accent)" }}>{totalUsers}</p>
-            </article>
-            <article>
-              <h2>🏪 Total Sellers</h2>
-              <p style={{ fontSize: "1.5rem", fontWeight: "600", color: "var(--accent)" }}>{totalSellers}</p>
-              <p style={{ fontSize: "0.85rem", color: "#5e584d", margin: "0.3rem 0 0" }}>{activeSellers} active, {inactiveSellers} inactive</p>
-            </article>
-            <article>
-              <h2>📦 Total Products</h2>
-              <p style={{ fontSize: "1.5rem", fontWeight: "600", color: "var(--accent)" }}>{totalSellerProducts}</p>
-              <p style={{ fontSize: "0.85rem", color: "#5e584d", margin: "0.3rem 0 0" }}>{approvedProducts} approved, {pendingProducts} pending</p>
-            </article>
-            <article>
-              <h2>📋 Total Orders</h2>
-              <p style={{ fontSize: "1.5rem", fontWeight: "600", color: "var(--accent)" }}>{totalOrders}</p>
-              <p style={{ fontSize: "0.85rem", color: "#5e584d", margin: "0.3rem 0 0" }}>{deliveredOrders} delivered</p>
-            </article>
-            <article>
-              <h2>⏳ Pending Orders</h2>
-              <p style={{ fontSize: "1.5rem", fontWeight: "600", color: "#ff9800" }}>{pendingOrders}</p>
-              <p style={{ fontSize: "0.85rem", color: "#5e584d", margin: "0.3rem 0 0" }}>{shippedOrders} shipped</p>
-            </article>
-            <article>
-              <h2>💰 Total Revenue</h2>
-              <p style={{ fontSize: "1.5rem", fontWeight: "600", color: "#4caf50" }}>₱{totalRevenue.toFixed(2)}</p>
-              <p style={{ fontSize: "0.85rem", color: "#5e584d", margin: "0.3rem 0 0" }}>from {totalOrders} orders</p>
-            </article>
-          </div>
-
-          <div style={{ marginBottom: "2rem" }}>
-            <Map 
-              position={[shopLocation.latitude, shopLocation.longitude]}
-              title={`📍 Admin Store Location - ${shopLocation.name}`}
-              height="400px"
-              zoom={shopLocation.zoom}
-            />
-          </div>
-        </>
+        <AdminDashboard shopLocation={shopLocation} />
       )}
 
       {/* Settings Tab */}

@@ -72,6 +72,19 @@ export type DatabaseOrder = {
   isDelivered: boolean;
 };
 
+export type AdminDashboardStats = {
+  totalUsers: number;
+  totalOrders: number;
+  pendingOrders: number;
+  processingOrders: number;
+  shippedOrders: number;
+  deliveredOrders: number;
+  cancelledOrders: number;
+  totalRevenue: number;
+  averageOrderValue: number;
+  totalProducts: number;
+};
+
 type OrderContextType = {
   currentOrder: Order | null;
   orders: Order[];
@@ -86,6 +99,8 @@ type OrderContextType = {
   updateDatabaseOrderStatus: (orderId: string, status: string) => Promise<{ success: boolean; error?: string }>;
   getUserDatabaseOrders: (userId: string) => Promise<void>;
   getAllDatabaseOrders: () => Promise<void>;
+  // Admin dashboard functions
+  getAdminDashboardStats: () => Promise<AdminDashboardStats | null>;
 };
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
@@ -320,6 +335,70 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Admin Dashboard Statistics - ONLY queries Supabase
+  const getAdminDashboardStats = async (): Promise<AdminDashboardStats | null> => {
+    try {
+      // Get all orders from Supabase
+      const { data: ordersData, error: ordersError } = await (supabase
+        .from("orders")
+        .select("*") as any);
+
+      if (ordersError) {
+        console.error("Error fetching orders for stats:", ordersError);
+        return null;
+      }
+
+      // Get all users count from Supabase
+      const { data: usersData, error: usersError } = await (supabase
+        .from("users")
+        .select("id") as any);
+
+      if (usersError) {
+        console.error("Error fetching users for stats:", usersError);
+        return null;
+      }
+
+      // Get all products count from Supabase
+      const { data: productsData, error: productsError } = await (supabase
+        .from("shoe-otah")
+        .select("id") as any);
+
+      if (productsError) {
+        console.error("Error fetching products for stats:", productsError);
+        return null;
+      }
+
+      // Calculate stats from orders
+      const orders = ordersData || [];
+      const totalOrders = orders.length;
+      const pendingOrders = orders.filter((o: any) => o.status === "pending").length;
+      const processingOrders = orders.filter((o: any) => o.status === "processing").length;
+      const shippedOrders = orders.filter((o: any) => o.status === "shipped").length;
+      const deliveredOrders = orders.filter((o: any) => o.status === "delivered").length;
+      const cancelledOrders = orders.filter((o: any) => o.status === "cancelled").length;
+      const totalRevenue = orders
+        .filter((o: any) => o.status === "delivered")
+        .reduce((sum: number, o: any) => sum + (o.total_amount || 0), 0);
+      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+      return {
+        totalUsers: usersData?.length || 0,
+        totalOrders,
+        pendingOrders,
+        processingOrders,
+        shippedOrders,
+        deliveredOrders,
+        cancelledOrders,
+        totalRevenue,
+        averageOrderValue,
+        totalProducts: productsData?.length || 0,
+      };
+    } catch (error) {
+      console.error("Error fetching admin dashboard stats:", error);
+      return null;
+    }
+  };
+
   return (
     <OrderContext.Provider
       value={{ 
@@ -334,7 +413,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         createDatabaseOrder,
         updateDatabaseOrderStatus,
         getUserDatabaseOrders,
-        getAllDatabaseOrders
+        getAllDatabaseOrders,
+        getAdminDashboardStats,
       }}
     >
       {children}
