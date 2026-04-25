@@ -142,7 +142,6 @@ export default function Home() {
       <section className="hero">
         <div className="container hero-grid">
           <div>
-            <p className="kicker">Ecommerce for everyday motion</p>
             <h1>shoe-otah</h1>
             <p className="hero-copy">
               Fresh drops in shoes, shirts, pants, slippers, beauty product, jewelry and socks. Built for daily

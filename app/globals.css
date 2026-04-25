@@ -17,12 +17,7 @@
 body {
   margin: 0;
   color: var(--ink);
-  background-image: url('/shoe-store-bg.jpg');
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-attachment: fixed;
-  background-color: #fbf7ee;
+  background-color: #ffffff;
   font-family: var(--font-body), "Segoe UI", sans-serif;
   padding-top: 0;
 }
@@ -2159,4 +2154,14 @@ td {
   .confirmation-card {
     padding: 1.5rem;
   }
+}
+
+/* Shop background for login and home pages only */
+.shop-bg {
+  background-image: url('/shoe-store-bg.jpg');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-attachment: fixed;
+  background-color: #fbf7ee;
 }

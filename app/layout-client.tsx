@@ -86,6 +86,17 @@ function HeaderContent() {
   );
 }
 
+function MainContent({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isShopBgPage = pathname === "/" || pathname === "/login";
+
+  return (
+    <main className={isShopBgPage ? "shop-bg" : undefined} style={{ minHeight: "calc(100vh - 74px)" }}>
+      {children}
+    </main>
+  );
+}
+
 export function LayoutClient({ children }: { children: React.ReactNode }) {
   return (
     <>
@@ -111,7 +122,7 @@ export function LayoutClient({ children }: { children: React.ReactNode }) {
           <HeaderContent />
         </nav>
       </header>
-      <main>{children}</main>
+      <MainContent>{children}</MainContent>
     </>
   );
 }
