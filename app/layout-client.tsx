@@ -89,7 +89,7 @@ function HeaderContent() {
 
 function MainContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isShopBgPage = pathname === "/" || pathname === "/login";
+  const isShopBgPage = pathname === "/";
 
   return (
     <main className={isShopBgPage ? "shop-bg" : undefined} style={{ minHeight: "calc(100vh - 74px)" }}>
