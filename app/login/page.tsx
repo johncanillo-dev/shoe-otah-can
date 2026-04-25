@@ -131,24 +131,6 @@ export default function LoginPage() {
         <Link href="/register" className="btn btn-outline">
   Create Account
 </Link>
-
-{/* Facebook Link */}
-<div style={{ marginTop: "10px", textAlign: "center" }}>
-  <a
-    href="https://www.facebook.com/Chyxzykiss/"
-    target="_blank"
-    rel="noopener noreferrer"
-    style={{
-      fontSize: "13px",
-      color: "#1877F2",
-      textDecoration: "none",
-      fontWeight: "500"
-    }}
-  >
-    📱 Follow us on Facebook
-  </a>
-</div>
-
         {/* Right Side - Form */}
         <div className="auth-form-side">
           <div className="auth-form-container">
