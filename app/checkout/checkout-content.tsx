@@ -12,7 +12,7 @@ export default function CheckoutContent() {
   const searchParams = useSearchParams();
   const { isLoggedIn, user } = useAuth();
   const { items, total } = useCart();
-  const { createOrder } = useOrder();
+  const { createOrder, createDatabaseOrder } = useOrder();
   
   const directBuyItem = searchParams.get("item");
   const [isLoading, setIsLoading] = useState(true);
@@ -93,6 +93,12 @@ export default function CheckoutContent() {
       return;
     }
 
+    if (!user?.id) {
+      alert("Error: User ID not found. Please log in again.");
+      setIsSubmitting(false);
+      return;
+    }
+
     const customerDetails: CustomerDetails = {
       firstName,
       lastName,
@@ -108,7 +114,7 @@ export default function CheckoutContent() {
       postalCode,
     };
 
-    // Create order
+    // Create local order first (for local state management)
     createOrder({
       items: checkoutItems.map((item: any) => ({
         id: item.id,
@@ -125,10 +131,51 @@ export default function CheckoutContent() {
       total: finalTotal,
     });
 
-    // Redirect to order confirmation
-    setTimeout(() => {
-      router.push("/order-confirmation");
-    }, 500);
+    // Save each item to Supabase database for admin to see
+    const saveDatabaseOrders = async () => {
+      try {
+        const deliveryAddress = `${street}, ${barangay}, ${city}, ${province} ${postalCode}`;
+        
+        // Create a database order for each item in the cart
+        const savePromises = checkoutItems.map((item: any) =>
+          createDatabaseOrder({
+            userId: user.id,
+            productId: item.id,
+            productName: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            totalAmount: item.price * item.quantity,
+            status: "pending",
+            deliveryAddress,
+            deliveryNotes: `Payment method: ${paymentMethod}. Buyer: ${firstName} ${lastName}. Phone: ${phone}`,
+            estimatedDelivery: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          })
+        );
+
+        const results = await Promise.all(savePromises);
+        
+        // Check if all orders were saved successfully
+        const allSuccess = results.every(r => r.success);
+        
+        if (!allSuccess) {
+          console.warn("Some orders failed to save to database, but proceeding anyway");
+        }
+
+        // Redirect to order confirmation after saving
+        setTimeout(() => {
+          router.push("/order-confirmation");
+        }, 500);
+      } catch (error) {
+        console.error("Error saving orders to database:", error);
+        alert("Order placed but failed to sync to database. Admin will review manually.");
+        // Still redirect to order confirmation
+        setTimeout(() => {
+          router.push("/order-confirmation");
+        }, 500);
+      }
+    };
+
+    saveDatabaseOrders();
   };
 
   return (

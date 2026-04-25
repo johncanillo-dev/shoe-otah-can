@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useOrder } from "@/lib/order-context";
 import { useAuth } from "@/lib/auth-context";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import Map from "@/app/components/map";
 
 export type AdminDashboardStats = {
@@ -28,31 +29,48 @@ export function AdminDashboard({ shopLocation = { latitude: 8.6324, longitude: 1
   const [stats, setStats] = useState<AdminDashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>("");
+  const supabase = createSupabaseBrowserClient();
 
-  // Fetch stats on mount and every 30 seconds
+  // Fetch stats function
+  const fetchStats = async () => {
+    setIsLoading(true);
+    try {
+      const dashboardStats = await getAdminDashboardStats();
+      if (dashboardStats) {
+        setStats(dashboardStats);
+        setLastUpdated(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      }
+    } catch (error) {
+      console.error("Failed to fetch dashboard stats:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Setup real-time subscription
   useEffect(() => {
     if (!isAdmin) return;
 
-    const fetchStats = async () => {
-      setIsLoading(true);
-      try {
-        const dashboardStats = await getAdminDashboardStats();
-        if (dashboardStats) {
-          setStats(dashboardStats);
-          setLastUpdated(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-        }
-      } catch (error) {
-        console.error("Failed to fetch dashboard stats:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
+    // Fetch initial stats
     fetchStats();
 
-    // Auto-refresh every 30 seconds
+    // Subscribe to real-time changes on orders table
+    const subscription = supabase
+      .from("orders")
+      .on("*", (payload) => {
+        console.log("📡 Real-time order update detected:", payload);
+        // Refresh stats when order table changes
+        fetchStats();
+      })
+      .subscribe();
+
+    // Fallback: Also poll every 30 seconds for extra reliability
     const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
+
+    return () => {
+      supabase.removeAllChannels();
+      clearInterval(interval);
+    };
   }, [isAdmin, getAdminDashboardStats]);
 
   if (!isAdmin) {
@@ -248,7 +266,7 @@ export function AdminDashboard({ shopLocation = { latitude: 8.6324, longitude: 1
         textAlign: "center",
       }}>
         <p style={{ fontSize: "0.85rem", color: "#666", margin: "0" }}>
-          📡 Live data from Supabase • Last updated: {lastUpdated || "Loading..."} • Auto-refresh every 30 seconds
+          � LIVE REAL-TIME DATA from Supabase • Last updated: {lastUpdated || "Loading..."} • Instant updates on order changes + 30s fallback refresh
         </p>
       </div>
 
