@@ -18,6 +18,7 @@ type CartItem = {
   price: number;
   quantity: number;
   category?: string;
+  image?: string;
 };
 
 export default function CheckoutContent() {
@@ -25,7 +26,7 @@ export default function CheckoutContent() {
   const searchParams = useSearchParams();
 
   const { isLoggedIn, user } = useAuth();
-  const { items } = useCart();
+  const { items, clearCart } = useCart();
   const { createOrder, createDatabaseOrder } = useOrder();
 
   const directBuyItem = searchParams.get("item");
@@ -46,7 +47,7 @@ export default function CheckoutContent() {
   const [paymentMethod, setPaymentMethod] =
     useState<PaymentMethod>("cod");
 
-  // 🔥 AUTH CHECK
+  // Auth check
   useEffect(() => {
     if (!isLoggedIn) {
       router.push("/login");
@@ -67,7 +68,7 @@ export default function CheckoutContent() {
     );
   }
 
-  // 🔥 SAFE CART
+  // Safe cart
   let checkoutItems: CartItem[] = items || [];
 
   if (directBuyItem) {
@@ -80,7 +81,7 @@ export default function CheckoutContent() {
     }
   }
 
-  // ❌ EMPTY CART
+  // Empty cart
   if (!checkoutItems.length) {
     return (
       <section className="auth-shell">
@@ -95,7 +96,7 @@ export default function CheckoutContent() {
     );
   }
 
-  // 💰 TOTALS
+  // Totals
   const checkoutTotal = checkoutItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
@@ -104,7 +105,7 @@ export default function CheckoutContent() {
   const tax = checkoutTotal * 0.08;
   const finalTotal = checkoutTotal + tax;
 
-  // 🔥 SUBMIT HANDLER (FULL FIX)
+  // Submit handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -112,16 +113,17 @@ export default function CheckoutContent() {
     setIsSubmitting(true);
 
     try {
-      // ✅ VALIDATION
       if (!user?.id) throw new Error("User not found");
 
       if (!firstName || !lastName || !phone || !street || !city) {
         alert("Please fill all required fields");
+        setIsSubmitting(false);
         return;
       }
 
       if (!checkoutItems.length) {
         alert("Cart is empty");
+        setIsSubmitting(false);
         return;
       }
 
@@ -140,7 +142,7 @@ export default function CheckoutContent() {
         postalCode,
       };
 
-      // ✅ LOCAL ORDER
+      // Local order
       createOrder({
         items: checkoutItems.map((item) => ({
           id: item.id,
@@ -157,7 +159,7 @@ export default function CheckoutContent() {
         total: finalTotal,
       });
 
-      // ✅ DATABASE SAVE
+      // Database save
       const deliveryAddress = `${street}, ${barangay}, ${city}, ${province} ${postalCode}`;
 
       const savePromises = checkoutItems.map((item) =>
@@ -182,15 +184,11 @@ export default function CheckoutContent() {
 
       await Promise.all(savePromises);
 
-      // ✅ CLEAR CART
-      localStorage.removeItem("cart");
+      // Clear cart
+      clearCart();
 
-      // if you have context method:
-      // clearCart();
-
-      // ✅ SUCCESS
+      // Success
       router.push("/order-confirmation");
-
     } catch (error) {
       console.error("Checkout error:", error);
       alert("Checkout failed. Please try again.");
@@ -201,20 +199,194 @@ export default function CheckoutContent() {
 
   return (
     <section className="checkout-shell container">
-      {/* 🔥 KEEP YOUR EXISTING UI HERE */}
-      {/* Just make sure your form uses: */}
-      
-      <form onSubmit={handleSubmit}>
-        {/* your inputs here */}
+      <div className="checkout-head">
+        <h1>Checkout</h1>
+      </div>
 
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="btn btn-primary"
-        >
-          {isSubmitting ? "Processing..." : "Proceed to Checkout"}
-        </button>
-      </form>
+      <div className="checkout-layout">
+        {/* Form */}
+        <div className="checkout-form">
+          <form onSubmit={handleSubmit}>
+            {/* Contact Information */}
+            <fieldset className="form-section">
+              <legend className="form-legend">Contact Information</legend>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="firstName">First Name *</label>
+                  <input
+                    id="firstName"
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="lastName">Last Name *</label>
+                  <input
+                    id="lastName"
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="email">Email</label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="phone">Phone *</label>
+                  <input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            </fieldset>
+
+            {/* Shipping Address */}
+            <fieldset className="form-section">
+              <legend className="form-legend">Shipping Address</legend>
+              <div className="form-group">
+                <label htmlFor="street">Street Address *</label>
+                <input
+                  id="street"
+                  type="text"
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="barangay">Barangay</label>
+                  <input
+                    id="barangay"
+                    type="text"
+                    value={barangay}
+                    onChange={(e) => setBarangay(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="city">City / Municipality *</label>
+                  <input
+                    id="city"
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="province">Province</label>
+                  <input
+                    id="province"
+                    type="text"
+                    value={province}
+                    onChange={(e) => setProvince(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="postalCode">Postal Code</label>
+                  <input
+                    id="postalCode"
+                    type="text"
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                  />
+                </div>
+              </div>
+            </fieldset>
+
+            {/* Payment Method */}
+            <fieldset className="form-section">
+              <legend className="form-legend">Payment Method</legend>
+              <div className="payment-options">
+                {([
+                  { value: "cod", label: "Cash on Delivery (COD)", desc: "Pay when you receive your order" },
+                  { value: "gcash", label: "GCash", desc: "Pay via GCash e-wallet" },
+                  { value: "paymaya", label: "PayMaya", desc: "Pay via PayMaya" },
+                  { value: "bankTransfer", label: "Bank Transfer", desc: "Transfer to our bank account" },
+                ] as { value: PaymentMethod; label: string; desc: string }[]).map((option) => (
+                  <label key={option.value} className="payment-option">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value={option.value}
+                      checked={paymentMethod === option.value}
+                      onChange={() => setPaymentMethod(option.value)}
+                    />
+                    <span className="payment-label">
+                      <strong>{option.label}</strong>
+                      <small>{option.desc}</small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="btn btn-primary"
+              style={{ width: "100%", marginTop: "1rem" }}
+            >
+              {isSubmitting ? "Processing..." : "Place Order"}
+            </button>
+          </form>
+        </div>
+
+        {/* Order Summary */}
+        <div className="checkout-summary">
+          <div className="summary-card">
+            <h2>Order Summary</h2>
+            <div className="order-items">
+              {checkoutItems.map((item) => (
+                <div key={item.id} className="order-item-row">
+                  <div>
+                    <p className="item-name">{item.name}</p>
+                    <p className="item-qty">Qty: {item.quantity}</p>
+                  </div>
+                  <p className="item-price">
+                    ₱{(item.price * item.quantity).toFixed(2)}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="summary-divider" />
+            <div className="summary-line">
+              <span>Subtotal</span>
+              <strong>₱{checkoutTotal.toFixed(2)}</strong>
+            </div>
+            <div className="summary-line">
+              <span>Tax (8%)</span>
+              <strong>₱{tax.toFixed(2)}</strong>
+            </div>
+            <div className="summary-line">
+              <span>Shipping</span>
+              <strong>Free</strong>
+            </div>
+            <div className="summary-line summary-total">
+              <span>Total</span>
+              <strong>₱{finalTotal.toFixed(2)}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
+
