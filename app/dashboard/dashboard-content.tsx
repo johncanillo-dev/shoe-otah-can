@@ -1,11 +1,11 @@
 "use client";
 
 import { useAuth } from "@/lib/auth-context";
-import { useOrder } from "@/lib/order-context";
+import { useOrder, type DatabaseOrder } from "@/lib/order-context";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useCart } from "@/lib/cart-context";
 import Map from "@/app/components/map";
 import ShopCard from "@/app/components/shop-card";
-import { DeliveryTimeline } from "@/app/components/delivery-timeline";
 import { UserSettings } from "@/app/components/user-settings";
 import { QuickUserSettings } from "@/app/components/quick-user-settings";
 import { DashboardHeader } from "@/app/components/dashboard-header";
@@ -26,9 +26,7 @@ const DEFAULT_CATEGORIES = ["Shoes", "Shirts", "Slippers", "Socks", "Necklace", 
 
 export default function DashboardContent() {
   const { user } = useAuth();
-  const { orders } = useOrder();
-  const { items } = useCart();
-  const { addItem } = useCart();
+  const { items, addItem } = useCart();
   const [deliveryInfoMap, setDeliveryInfoMap] = useState<Record<string, any>>({});
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings">("overview");
@@ -43,6 +41,7 @@ export default function DashboardContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [addedToCart, setAddedToCart] = useState<string | null>(null);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [supabaseOrders, setSupabaseOrders] = useState<DatabaseOrder[]>([]);
 
   // Load products from Supabase on mount and subscribe to real-time updates
   useEffect(() => {
@@ -56,7 +55,6 @@ export default function DashboardContent() {
 
     loadProducts();
 
-    // Subscribe to real-time product changes
     const unsubscribe = subscribeToProducts(
       (updatedProducts) => {
         console.log("🔄 Dashboard: Real-time update received:", updatedProducts.length, updatedProducts);
@@ -69,7 +67,6 @@ export default function DashboardContent() {
   }, []);
 
   useEffect(() => {
-    // Load shop location from localStorage (set by admin)
     const loadShopLocation = () => {
       const savedLocation = localStorage.getItem("shop-location");
       if (savedLocation) {
@@ -88,37 +85,79 @@ export default function DashboardContent() {
       }
     };
 
-    // Load initially
     loadShopLocation();
-    
-    // Listen for storage changes (when admin updates location in another tab)
     window.addEventListener("storage", loadShopLocation);
     return () => window.removeEventListener("storage", loadShopLocation);
   }, []);
 
+  // Fetch and subscribe to real-time Supabase orders for current user
   useEffect(() => {
-    // Load delivery info for all orders from localStorage
-    const infoMap: Record<string, any> = {};
-    orders.forEach((order) => {
-      const deliveryInfo = localStorage.getItem(`delivery-${order.id}`);
-      if (deliveryInfo) {
-        try {
-          infoMap[order.id] = JSON.parse(deliveryInfo);
-        } catch (e) {
-          console.error("Failed to parse delivery info:", e);
-        }
-      }
-    });
-    setDeliveryInfoMap(infoMap);
-  }, [orders]);
+    if (!user?.id) return;
 
-  // Filter orders placed by the current user
-  const userOrders = orders.filter((order) => order.customerDetails.email === user?.email);
+    const supabase = createSupabaseBrowserClient();
+
+    const fetchUserOrders = async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching user orders:", error);
+        return;
+      }
+
+      const mapped: DatabaseOrder[] = (data || []).map((o: any) => ({
+        id: o.id,
+        userId: o.user_id,
+        productId: o.product_id,
+        productName: o.product_name,
+        quantity: o.quantity,
+        price: o.price,
+        totalAmount: o.total_amount,
+        status: o.status,
+        deliveryAddress: o.delivery_address,
+        deliveryNotes: o.delivery_notes,
+        createdAt: o.created_at,
+        updatedAt: o.updated_at,
+        estimatedDelivery: o.estimated_delivery,
+        isDelivered: o.is_delivered,
+      }));
+
+      setSupabaseOrders(mapped);
+    };
+
+    fetchUserOrders();
+
+    const channel = supabase
+      .channel(`user-orders-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          fetchUserOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  // Use Supabase real-time orders for current user
+  const userOrders = supabaseOrders;
 
   // Calculate statistics
   const totalOrders = userOrders.length;
-  const totalSpent = userOrders.reduce((sum, order) => sum + order.total, 0);
-  const pendingOrders = userOrders.filter((order) => order.status === "pending" || order.status === "confirmed").length;
+  const totalSpent = userOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+  const pendingOrders = userOrders.filter((order) => order.status === "pending" || order.status === "processing").length;
   const deliveredOrders = userOrders.filter((order) => order.status === "delivered").length;
 
   // Filter products based on search query
@@ -126,7 +165,6 @@ export default function DashboardContent() {
     if (!searchQuery.trim()) {
       return products;
     }
-    
     return products.filter(
       (p) =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -134,7 +172,6 @@ export default function DashboardContent() {
     );
   }, [products, searchQuery]);
 
-  // Handle add to cart
   const handleAddToCart = (product: Product) => {
     addItem({
       id: product.id,
@@ -147,12 +184,11 @@ export default function DashboardContent() {
     setTimeout(() => setAddedToCart(null), 2000);
   };
 
-  // Get status badge color
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
         return "#ff9800";
-      case "confirmed":
+      case "processing":
         return "#2196f3";
       case "shipped":
         return "#9c27b0";
@@ -167,13 +203,12 @@ export default function DashboardContent() {
     }
   };
 
-  // Get status badge text
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
         return "⏳ Pending";
-      case "confirmed":
-        return "✅ Confirmed";
+      case "processing":
+        return "⚙️ Processing";
       case "shipped":
         return "📦 Shipped";
       case "out_for_delivery":
@@ -312,64 +347,6 @@ export default function DashboardContent() {
             </div>
           )}
 
-          {userOrders.length > 0 && (
-            <div className="dashboard-section">
-              <div className="section-header">
-                <h3>Recent Delivery Info</h3>
-              </div>
-              <div className="delivery-cards">
-                {userOrders
-                  .slice()
-                  .reverse()
-                  .slice(0, 3)
-                  .map((order) => {
-                    const deliveryInfo = deliveryInfoMap[order.id];
-                    return (
-                      <div key={order.id} className="delivery-card">
-                        <div className="delivery-status">
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "0.5rem 1rem",
-                              borderRadius: "6px",
-                              backgroundColor: getStatusColor(order.status) + "20",
-                              color: getStatusColor(order.status),
-                              fontWeight: "600",
-                              marginBottom: "0.5rem",
-                            }}
-                          >
-                            {getStatusBadge(order.status)}
-                          </span>
-                        </div>
-                        <p>
-                          <strong>Order:</strong> {order.id}
-                        </p>
-                        <p>
-                          <strong>Address:</strong> {order.address?.street}, {order.address?.barangay},{" "}
-                          {order.address?.city}, {order.address?.province}
-                        </p>
-                        <p>
-                          <strong>Payment:</strong> {order.paymentMethod.charAt(0).toUpperCase() + order.paymentMethod.slice(1)}
-                        </p>
-                        {deliveryInfo && (
-                          <>
-                            <p>
-                              <strong>Delivered:</strong> {deliveryInfo.date} at {deliveryInfo.time}
-                            </p>
-                            {deliveryInfo.notes && (
-                              <p>
-                                <strong>Notes:</strong> {deliveryInfo.notes}
-                              </p>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
-
           {/* Shop Search Section */}
           <div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
             <div style={{ marginBottom: "1.5rem" }}>
@@ -391,7 +368,6 @@ export default function DashboardContent() {
               />
             </div>
 
-            {/* Search Results */}
             {isLoadingProducts ? (
               <div style={{ textAlign: "center", padding: "2rem", color: "#666" }}>
                 <p>Loading products from Supabase...</p>
@@ -541,12 +517,12 @@ export default function DashboardContent() {
                     {userOrders.map((order) => (
                       <tr key={order.id}>
                         <td>
-                          <strong>{order.id}</strong>
+                          <strong>{order.id.slice(0, 8)}</strong>
                         </td>
                         <td>{new Date(order.createdAt).toLocaleDateString()}</td>
-                        <td>{order.items.length} item(s)</td>
+                        <td>{order.productName} × {order.quantity}</td>
                         <td>
-                          <strong>₱{order.total.toFixed(2)}</strong>
+                          <strong>₱{order.totalAmount.toFixed(2)}</strong>
                         </td>
                         <td>
                           <span
@@ -592,31 +568,21 @@ export default function DashboardContent() {
                     .filter((order) => order.id === selectedOrderId)
                     .map((order) => (
                       <div key={order.id}>
-                        <h3 style={{ marginTop: 0 }}>Order {order.id} - Details</h3>
+                        <h3 style={{ marginTop: 0 }}>Order {order.id.slice(0, 8)} - Details</h3>
 
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "1.5rem" }}>
                           <div>
-                            <h4 style={{ margin: "0 0 1rem 0" }}>Items</h4>
-                            {order.items.map((item) => (
-                              <div key={item.id} style={{ marginBottom: "0.75rem", paddingBottom: "0.75rem", borderBottom: "1px solid #eee" }}>
-                                <div style={{ fontWeight: "600" }}>{item.name}</div>
-                                <div style={{ fontSize: "0.9rem", color: "#666" }}>
-                                  {item.quantity} × ₱{item.price.toFixed(2)} = ₱{(item.quantity * item.price).toFixed(2)}
-                                </div>
+                            <h4 style={{ margin: "0 0 1rem 0" }}>Item</h4>
+                            <div style={{ marginBottom: "0.75rem", paddingBottom: "0.75rem", borderBottom: "1px solid #eee" }}>
+                              <div style={{ fontWeight: "600" }}>{order.productName}</div>
+                              <div style={{ fontSize: "0.9rem", color: "#666" }}>
+                                {order.quantity} × ₱{order.price.toFixed(2)} = ₱{(order.quantity * order.price).toFixed(2)}
                               </div>
-                            ))}
+                            </div>
                             <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "2px solid var(--line)" }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                                <span>Subtotal:</span>
-                                <strong>₱{order.subtotal.toFixed(2)}</strong>
-                              </div>
-                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                                <span>Tax:</span>
-                                <strong>₱{order.tax.toFixed(2)}</strong>
-                              </div>
                               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "1.1rem" }}>
                                 <span>Total:</span>
-                                <strong>₱{order.total.toFixed(2)}</strong>
+                                <strong>₱{order.totalAmount.toFixed(2)}</strong>
                               </div>
                             </div>
                           </div>
@@ -624,35 +590,15 @@ export default function DashboardContent() {
                           <div>
                             <h4 style={{ margin: "0 0 1rem 0" }}>Delivery Address</h4>
                             <div style={{ lineHeight: "1.6" }}>
-                              <p style={{ margin: "0.5rem 0" }}>{order.address.street}</p>
-                              <p style={{ margin: "0.5rem 0" }}>{order.address.barangay}</p>
-                              <p style={{ margin: "0.5rem 0" }}>
-                                {order.address.city}, {order.address.province} {order.address.postalCode}
-                              </p>
+                              <p style={{ margin: "0.5rem 0" }}>{order.deliveryAddress}</p>
                             </div>
 
-                            <h4 style={{ margin: "1.5rem 0 0.5rem 0" }}>Customer Contact</h4>
-                            <div style={{ fontSize: "0.9rem", color: "#666" }}>
-                              <p style={{ margin: "0.25rem 0" }}>
-                                <strong>Name:</strong> {order.customerDetails.firstName} {order.customerDetails.lastName}
-                              </p>
-                              <p style={{ margin: "0.25rem 0" }}>
-                                <strong>Email:</strong> {order.customerDetails.email}
-                              </p>
-                              <p style={{ margin: "0.25rem 0" }}>
-                                <strong>Phone:</strong> {order.customerDetails.phone}
-                              </p>
-                            </div>
-
-                            <h4 style={{ margin: "1.5rem 0 0.5rem 0" }}>Payment</h4>
+                            <h4 style={{ margin: "1.5rem 0 0.5rem 0" }}>Notes</h4>
                             <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>
-                              {order.paymentMethod.charAt(0).toUpperCase() + order.paymentMethod.slice(1).replace(/([A-Z])/g, " $1")}
+                              {order.deliveryNotes || "No additional notes"}
                             </p>
                           </div>
                         </div>
-
-                        {/* Delivery Timeline */}
-                        <DeliveryTimeline order={order} />
 
                         <div style={{ marginTop: "1rem" }}>
                           <button
@@ -687,3 +633,4 @@ export default function DashboardContent() {
     </section>
   );
 }
+

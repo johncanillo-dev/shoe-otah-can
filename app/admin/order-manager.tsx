@@ -1,21 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useOrder, type Order } from "@/lib/order-context";
+import { useOrder, type DatabaseOrder } from "@/lib/order-context";
 
 export function OrderManager() {
-  const { orders } = useOrder();
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "confirmed" | "shipped" | "delivered">("all");
+  const { databaseOrders, updateDatabaseOrderStatus } = useOrder();
+  const [selectedOrder, setSelectedOrder] = useState<DatabaseOrder | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "processing" | "shipped" | "delivered" | "cancelled">("all");
   const [isLoading, setIsLoading] = useState(true);
   const [deliveryNotes, setDeliveryNotes] = useState("");
-  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [allOrders, setAllOrders] = useState<DatabaseOrder[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
 
   useEffect(() => {
     setIsLoading(false);
-    setAllOrders(orders);
-  }, [orders]);
+    setAllOrders(databaseOrders);
+  }, [databaseOrders]);
 
   useEffect(() => {
     if (selectedOrder) {
@@ -32,12 +32,14 @@ export function OrderManager() {
     switch (status) {
       case "pending":
         return "#ff9800"; // Orange
-      case "confirmed":
+      case "processing":
         return "#2196f3"; // Blue
       case "shipped":
         return "#9c27b0"; // Purple
       case "delivered":
         return "#4caf50"; // Green
+      case "cancelled":
+        return "#f44336"; // Red
       default:
         return "#757575"; // Gray
     }
@@ -47,22 +49,16 @@ export function OrderManager() {
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
-  const handleStatusUpdate = (orderId: string, newStatus: "pending" | "confirmed" | "shipped" | "delivered") => {
-    const updatedOrders = allOrders.map(order =>
-      order.id === orderId ? { ...order, status: newStatus } : order
-    );
-    
-    setAllOrders(updatedOrders);
-    localStorage.setItem("orders", JSON.stringify(updatedOrders));
-    
-    if (selectedOrder?.id === orderId) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
-    }
-
-    // Send notification (in real app, would send to backend/email service)
-    const order = allOrders.find(o => o.id === orderId);
-    if (order) {
-      console.log(`Customer ${order.customerDetails.email} notified of status: ${newStatus}`);
+  const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+    const result = await updateDatabaseOrderStatus(orderId, newStatus);
+    if (result.success) {
+      // local state updates via real-time subscription
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus as DatabaseOrder["status"] });
+      }
+    } else {
+      console.error("Failed to update order status:", result.error);
+      alert("Failed to update order status. Please try again.");
     }
   };
 
@@ -108,7 +104,7 @@ export function OrderManager() {
         <div className="section-header">
           <h2>📦 Customer Orders & Checkouts</h2>
           <div className="filter-buttons">
-            {(["all", "pending", "confirmed", "shipped", "delivered"] as const).map((filter) => (
+            {(["all", "pending", "processing", "shipped", "delivered", "cancelled"] as const).map((filter) => (
               <button
                 key={filter}
                 className={`filter-btn ${statusFilter === filter ? "active" : ""}`}
@@ -141,10 +137,9 @@ export function OrderManager() {
               <thead>
                 <tr>
                   <th>Order ID</th>
-                  <th>Customer Name</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                  <th>Total</th>
+                  <th>Product</th>
+                  <th>Qty</th>
+                  <th>Amount</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
@@ -152,11 +147,10 @@ export function OrderManager() {
               <tbody>
                 {filteredOrders.map((order) => (
                   <tr key={order.id}>
-                    <td style={{ fontWeight: "600" }}>{order.id}</td>
-                    <td>{order.customerDetails.firstName} {order.customerDetails.lastName}</td>
-                    <td>{order.customerDetails.email}</td>
-                    <td>{order.customerDetails.phone}</td>
-                    <td style={{ fontWeight: "600" }}>₱{order.total.toFixed(2)}</td>
+                    <td style={{ fontWeight: "600" }}>{order.id.slice(0, 8)}</td>
+                    <td>{order.productName}</td>
+                    <td>{order.quantity}</td>
+                    <td style={{ fontWeight: "600" }}>₱{order.totalAmount.toFixed(2)}</td>
                     <td>
                       <span
                         style={{
@@ -250,16 +244,12 @@ export function OrderManager() {
             <div className="detail-section">
               <h3>👤 Customer Information</h3>
               <div className="detail-row">
-                <strong>Name:</strong>
-                <span>{selectedOrder.customerDetails.firstName} {selectedOrder.customerDetails.lastName}</span>
+                <strong>Order ID:</strong>
+                <span>{selectedOrder.id}</span>
               </div>
               <div className="detail-row">
-                <strong>Email:</strong>
-                <span>{selectedOrder.customerDetails.email}</span>
-              </div>
-              <div className="detail-row">
-                <strong>Phone:</strong>
-                <span>{selectedOrder.customerDetails.phone}</span>
+                <strong>User ID:</strong>
+                <span>{selectedOrder.userId}</span>
               </div>
             </div>
 
@@ -267,81 +257,40 @@ export function OrderManager() {
             <div className="detail-section">
               <h3>📍 Delivery Address</h3>
               <div style={{ padding: "1rem", backgroundColor: "#f9f6f0", borderRadius: "8px" }}>
-                <p style={{ margin: "0.3rem 0" }}>
-                  <strong>{selectedOrder.customerDetails.firstName} {selectedOrder.customerDetails.lastName}</strong>
-                </p>
                 <p style={{ margin: "0.3rem 0", color: "#5e584d" }}>
-                  {selectedOrder.address.street}
-                </p>
-                <p style={{ margin: "0.3rem 0", color: "#5e584d" }}>
-                  {selectedOrder.address.barangay}, {selectedOrder.address.city}
-                </p>
-                <p style={{ margin: "0.3rem 0", color: "#5e584d" }}>
-                  {selectedOrder.address.province} {selectedOrder.address.postalCode}
+                  {selectedOrder.deliveryAddress}
                 </p>
               </div>
             </div>
 
             {/* Products */}
             <div className="detail-section">
-              <h3>🛍️ Products Ordered</h3>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--line)" }}>
-                    <th style={{ textAlign: "left", padding: "0.5rem", fontWeight: "600" }}>Product</th>
-                    <th style={{ textAlign: "center", padding: "0.5rem", fontWeight: "600" }}>Qty</th>
-                    <th style={{ textAlign: "right", padding: "0.5rem", fontWeight: "600" }}>Price</th>
-                    <th style={{ textAlign: "right", padding: "0.5rem", fontWeight: "600" }}>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedOrder.items.map((item) => (
-                    <tr key={item.id} style={{ borderBottom: "1px solid #ddd" }}>
-                      <td style={{ padding: "0.8rem 0.5rem" }}>
-                        <div>
-                          <strong>{item.name}</strong>
-                          <div style={{ fontSize: "0.85rem", color: "#5e584d" }}>{item.category}</div>
-                        </div>
-                      </td>
-                      <td style={{ textAlign: "center", padding: "0.8rem 0.5rem" }}>{item.quantity}</td>
-                      <td style={{ textAlign: "right", padding: "0.8rem 0.5rem" }}>₱{item.price.toFixed(2)}</td>
-                      <td style={{ textAlign: "right", padding: "0.8rem 0.5rem", fontWeight: "600" }}>
-                        ₱{(item.price * item.quantity).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <h3>🛍️ Product Ordered</h3>
+              <div style={{ padding: "1rem", backgroundColor: "#f9f6f0", borderRadius: "8px" }}>
+                <div style={{ fontWeight: "600" }}>{selectedOrder.productName}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.5rem" }}>
+                  <span>Qty: {selectedOrder.quantity}</span>
+                  <span>Price: ₱{selectedOrder.price.toFixed(2)}</span>
+                </div>
+                <div style={{ textAlign: "right", marginTop: "0.5rem", fontWeight: "600" }}>
+                  Total: ₱{(selectedOrder.quantity * selectedOrder.price).toFixed(2)}
+                </div>
+              </div>
             </div>
 
             {/* Payment Information */}
             <div className="detail-section">
-              <h3>💳 Payment Information</h3>
-              <div className="detail-row">
-                <strong>Method:</strong>
-                <span style={{ textTransform: "capitalize" }}>
-                  {selectedOrder.paymentMethod === "cash" ? "💵 Cash on Delivery" :
-                   selectedOrder.paymentMethod === "gcash" ? "📱 GCash" :
-                   selectedOrder.paymentMethod === "paymaya" ? "💳 PayMaya" :
-                   selectedOrder.paymentMethod === "bankTransfer" ? "🏦 Bank Transfer" :
-                   selectedOrder.paymentMethod}
-                </span>
+              <h3>💳 Notes</h3>
+              <div className="detail-row" style={{ flexDirection: "column", alignItems: "flex-start" }}>
+                <p style={{ margin: "0.3rem 0", color: "#5e584d" }}>{selectedOrder.deliveryNotes || "No additional notes"}</p>
               </div>
             </div>
 
             {/* Order Summary */}
             <div className="detail-section" style={{ backgroundColor: "#f9f6f0", padding: "1rem", borderRadius: "8px" }}>
-              <div className="detail-row">
-                <strong>Subtotal:</strong>
-                <span>₱{selectedOrder.subtotal.toFixed(2)}</span>
-              </div>
-              <div className="detail-row">
-                <strong>Tax (8%):</strong>
-                <span>₱{selectedOrder.tax.toFixed(2)}</span>
-              </div>
-              <div className="detail-row" style={{ fontSize: "1.1rem", fontWeight: "600", borderTop: "1px solid var(--line)", paddingTop: "0.5rem" }}>
-                <strong>Total:</strong>
-                <span>₱{selectedOrder.total.toFixed(2)}</span>
+              <div className="detail-row" style={{ fontSize: "1.1rem", fontWeight: "600" }}>
+                <strong>Total Amount:</strong>
+                <span>₱{selectedOrder.totalAmount.toFixed(2)}</span>
               </div>
             </div>
 
@@ -399,7 +348,7 @@ export function OrderManager() {
             <div className="detail-section">
               <h3>🔄 Update Order Status</h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.8rem" }}>
-                {(["pending", "confirmed", "shipped", "delivered"] as const).map((status) => (
+                {(["pending", "processing", "shipped", "delivered", "cancelled"] as const).map((status) => (
                   <button
                     key={status}
                     onClick={() => handleStatusUpdate(selectedOrder.id, status)}
@@ -424,8 +373,9 @@ export function OrderManager() {
                     }}
                   >
                     {status === "pending" ? "⏳" : 
-                     status === "confirmed" ? "✅" :
+                     status === "processing" ? "⚙️" :
                      status === "shipped" ? "📦" :
+                     status === "cancelled" ? "❌" :
                      "🚚"} {getStatusLabel(status)}
                   </button>
                 ))}

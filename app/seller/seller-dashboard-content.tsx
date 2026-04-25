@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { useSeller } from "@/lib/seller-context";
 import { useOrder } from "@/lib/order-context";
+import { type DatabaseOrder } from "@/lib/order-context";
 import { SellerOrderStatusUpdater } from "@/app/components/seller-order-status-updater";
 import { SellerSettings } from "@/app/components/seller-settings";
 import { QuickSellerSettings } from "@/app/components/quick-seller-settings";
@@ -23,7 +24,7 @@ export default function SellerDashboardContent() {
   const router = useRouter();
   const { seller, sellerLogout, addSellerProduct, sellerProducts, updateSellerProduct, deleteSellerProduct } =
     useSeller();
-  const { orders } = useOrder();
+  const { databaseOrders } = useOrder();
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"products" | "orders" | "analytics" | "settings">("analytics");
@@ -71,23 +72,17 @@ export default function SellerDashboardContent() {
     return () => window.removeEventListener("storage", loadShopLocation);
   }, []);
 
-  // Get seller orders (orders containing this seller's products)
-  const sellerOrders = orders.filter((order) =>
-    order.items.some((item) =>
-      sellerProducts.some((p) => p.id === item.id)
-    )
+  // Get seller orders (Supabase real-time orders matching seller product IDs)
+  const sellerProductIds = new Set(sellerProducts.map((p) => p.id));
+  const sellerOrders = databaseOrders.filter((order) =>
+    sellerProductIds.has(order.productId)
   );
 
   // Calculate seller analytics
   const totalOrders = sellerOrders.length;
-  const pendingOrders = sellerOrders.filter((o) => o.status === "pending").length;
+  const pendingOrders = sellerOrders.filter((o) => o.status === "pending" || o.status === "processing").length;
   const completedOrders = sellerOrders.filter((o) => o.status === "delivered").length;
-  const sellerRevenue = sellerOrders.reduce((sum, order) => {
-    const sellerTotal = order.items
-      .filter((item) => sellerProducts.some((p) => p.id === item.id))
-      .reduce((itemSum, item) => itemSum + item.price * item.quantity, 0);
-    return sum + sellerTotal;
-  }, 0);
+  const sellerRevenue = sellerOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
 
   const handleAddProduct = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -123,6 +118,28 @@ export default function SellerDashboardContent() {
   const handleLogout = () => {
     sellerLogout();
     router.push("/login");
+  };
+
+  // Get status badge styles for DatabaseOrder status
+  const getStatusStyles = (status: string) => {
+    switch (status) {
+      case "pending":
+        return { bg: "#fff3cd", color: "#856404" };
+      case "processing":
+        return { bg: "#cfe2ff", color: "#084298" };
+      case "shipped":
+        return { bg: "#d1ecf1", color: "#055160" };
+      case "delivered":
+        return { bg: "#d4edda", color: "#155724" };
+      case "cancelled":
+        return { bg: "#f8d7da", color: "#721c24" };
+      default:
+        return { bg: "#e2e3e5", color: "#383d41" };
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
   if (!seller) {
@@ -215,12 +232,8 @@ export default function SellerDashboardContent() {
                 <p style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>{completedOrders} Delivered</p>
                 <p style={{ color: "#5e584d", fontSize: "0.9rem" }}>{pendingOrders} Pending</p>
               </div>
-              <div className={styles.analyticsCard}>
-                <h3>Products</h3>
-                <p style={{ fontSize: "1.2rem", marginBottom: "0.5rem" }}>{sellerProducts.length} Listed</p>
-                <p style={{ color: "#5e584d", fontSize: "0.9rem" }}>Across all categories</p>
+
               </div>
-            </div>
           </section>
         )}
 
@@ -347,12 +360,13 @@ export default function SellerDashboardContent() {
                     >
                       Delete
                     </button>
-                  </div>
+</div>
                 </div>
               ))
             )}
           </div>
-        </section>        )}
+        </section>
+        )}
 
         {activeTab === "orders" && (
           <section className={styles.ordersSection}>
@@ -365,79 +379,60 @@ export default function SellerDashboardContent() {
                   <thead>
                     <tr>
                       <th>Order ID</th>
-                      <th>Customer</th>
-                      <th>Items</th>
-                      <th>Total</th>
+                      <th>Product</th>
+                      <th>Qty</th>
+                      <th>Amount</th>
                       <th>Status</th>
                       <th>Date</th>
                       <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sellerOrders.map((order) => (
-                      <tr key={order.id}>
-                        <td>
-                          <span style={{ fontWeight: "600", color: "var(--accent)" }}>{order.id}</span>
-                        </td>
-                        <td>
-                          {order.customerDetails.firstName} {order.customerDetails.lastName}
-                        </td>
-                        <td>
-                          {order.items.filter((item) => sellerProducts.some((p) => p.id === item.id)).length} item(s)
-                        </td>
-                        <td>₱{order.total.toFixed(2)}</td>
-                        <td>
-                          <span
-                            style={{
-                              padding: "0.25rem 0.75rem",
-                              borderRadius: "4px",
-                              fontSize: "0.85rem",
-                              fontWeight: "600",
-                              backgroundColor:
-                                order.status === "pending"
-                                  ? "#fff3cd"
-                                  : order.status === "confirmed"
-                                    ? "#cfe2ff"
-                                    : order.status === "shipped"
-                                      ? "#d1ecf1"
-                                      : order.status === "out_for_delivery"
-                                        ? "#fff3cd"
-                                        : "#d4edda",
-                              color:
-                                order.status === "pending"
-                                  ? "#856404"
-                                  : order.status === "confirmed"
-                                    ? "#084298"
-                                    : order.status === "shipped"
-                                      ? "#055160"
-                                      : order.status === "out_for_delivery"
-                                        ? "#856404"
-                                        : "#155724",
-                            }}
-                          >
-                            {order.status.replace(/_/g, " ").charAt(0).toUpperCase() + order.status.slice(1).replace(/_/g, " ")}
-                          </span>
-                        </td>
-                        <td>{new Date(order.createdAt).toLocaleDateString()}</td>
-                        <td>
-                          <button
-                            onClick={() => setSelectedOrderId(selectedOrderId === order.id ? null : order.id)}
-                            style={{
-                              padding: "0.25rem 0.5rem",
-                              fontSize: "0.8rem",
-                              background: "var(--accent)",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              fontWeight: "600",
-                            }}
-                          >
-                            {selectedOrderId === order.id ? "Close" : "Update"}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {sellerOrders.map((order) => {
+                      const styles = getStatusStyles(order.status);
+                      return (
+                        <tr key={order.id}>
+                          <td>
+                            <span style={{ fontWeight: "600", color: "var(--accent)" }}>{order.id.slice(0, 8)}</span>
+                          </td>
+                          <td>{order.productName}</td>
+                          <td>{order.quantity}</td>
+                          <td>₱{order.totalAmount.toFixed(2)}</td>
+                          <td>
+                            <span
+                              style={{
+                                padding: "0.25rem 0.75rem",
+                                borderRadius: "4px",
+                                fontSize: "0.85rem",
+                                fontWeight: "600",
+                                backgroundColor: styles.bg,
+                                color: styles.color,
+                              }}
+                            >
+                              {getStatusLabel(order.status)}
+                            </span>
+                          </td>
+                          <td>{new Date(order.createdAt).toLocaleDateString()}</td>
+                          <td>
+                            <button
+                              onClick={() => setSelectedOrderId(selectedOrderId === order.id ? null : order.id)}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                fontSize: "0.8rem",
+                                background: "var(--accent)",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontWeight: "600",
+                              }}
+                            >
+                              {selectedOrderId === order.id ? "Close" : "Update"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -450,8 +445,9 @@ export default function SellerDashboardContent() {
                   .filter((order) => order.id === selectedOrderId)
                   .map((order) => (
                     <div key={order.id}>
-                      <h3 style={{ marginTop: 0 }}>Update Order {order.id}</h3>
-                      <SellerOrderStatusUpdater order={order} />
+                      <h3 style={{ marginTop: 0 }}>Update Order {order.id.slice(0, 8)}</h3>
+                      <p>Product: {order.productName} | Qty: {order.quantity}</p>
+                      <p>Current Status: <strong>{getStatusLabel(order.status)}</strong></p>
                     </div>
                   ))}
               </div>

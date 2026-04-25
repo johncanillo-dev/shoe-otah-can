@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { createSupabaseBrowserClient } from "./supabase/client";
 
 export type PaymentMethod = "cash" | "gcash" | "paymaya" | "bankTransfer" | "cod";
@@ -99,6 +99,7 @@ type OrderContextType = {
   updateDatabaseOrderStatus: (orderId: string, status: string) => Promise<{ success: boolean; error?: string }>;
   getUserDatabaseOrders: (userId: string) => Promise<void>;
   getAllDatabaseOrders: () => Promise<void>;
+  refreshDatabaseOrders: () => Promise<void>;
   // Admin dashboard functions
   getAdminDashboardStats: () => Promise<AdminDashboardStats | null>;
 };
@@ -113,8 +114,8 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   const [databaseOrders, setDatabaseOrders] = useState<DatabaseOrder[]>([]);
   const supabase = createSupabaseBrowserClient();
 
-  React.useEffect(() => {
-    // Load orders from localStorage on mount
+  // Load orders from localStorage on mount
+  useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
@@ -123,6 +124,33 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         console.error("Failed to parse orders:", e);
       }
     }
+  }, []);
+
+  // Real-time subscription to keep databaseOrders in sync with Supabase
+  useEffect(() => {
+    // Initial fetch
+    getAllDatabaseOrders();
+
+    const channel = supabase
+      .channel('global-orders-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          console.log("📡 Real-time order change detected in provider:", payload);
+          getAllDatabaseOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const createOrder = (order: Omit<Order, "id" | "createdAt" | "status" | "statusHistory">) => {
@@ -298,6 +326,10 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshDatabaseOrders = async () => {
+    await getAllDatabaseOrders();
+  };
+
   const updateDatabaseOrderStatus = async (
     orderId: string,
     status: string
@@ -399,7 +431,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  return (
+return (
     <OrderContext.Provider
       value={{ 
         currentOrder, 
@@ -414,6 +446,7 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         updateDatabaseOrderStatus,
         getUserDatabaseOrders,
         getAllDatabaseOrders,
+        refreshDatabaseOrders,
         getAdminDashboardStats,
       }}
     >

@@ -54,9 +54,9 @@ export function AdminDashboard({ shopLocation = { latitude: 8.6324, longitude: 1
     // Fetch initial stats
     fetchStats();
 
-    // Subscribe to real-time changes on orders table using modern Supabase API
-    const channel = supabase
-      .channel('orders-changes')
+    // Subscribe to real-time changes on orders table
+    const ordersChannel = supabase
+      .channel('admin-orders-changes')
       .on(
         'postgres_changes',
         {
@@ -66,7 +66,40 @@ export function AdminDashboard({ shopLocation = { latitude: 8.6324, longitude: 1
         },
         (payload) => {
           console.log("📡 Real-time order update detected:", payload);
-          // Refresh stats when order table changes
+          fetchStats();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to real-time changes on users table
+    const usersChannel = supabase
+      .channel('admin-users-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'users'
+        },
+        (payload) => {
+          console.log("📡 Real-time user update detected:", payload);
+          fetchStats();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to real-time changes on products table
+    const productsChannel = supabase
+      .channel('admin-products-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'shoe-otah'
+        },
+        (payload) => {
+          console.log("📡 Real-time product update detected:", payload);
           fetchStats();
         }
       )
@@ -76,7 +109,9 @@ export function AdminDashboard({ shopLocation = { latitude: 8.6324, longitude: 1
     const interval = setInterval(fetchStats, 30000);
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(usersChannel);
+      supabase.removeChannel(productsChannel);
       clearInterval(interval);
     };
   }, [isAdmin, getAdminDashboardStats]);
