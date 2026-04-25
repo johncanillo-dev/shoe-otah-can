@@ -12,13 +12,14 @@ function HeaderContent() {
   const { seller, isSellerLoggedIn, sellerLogout } = useSeller();
   const pathname = usePathname();
   const isAuthPage = pathname === "/login" || pathname === "/register" || pathname === "/seller-register";
+  const isAdminPage = pathname.startsWith("/admin");
 
   return (
     <>
       {isSellerLoggedIn && seller && !isAuthPage ? (
         <>
           {/* Seller Navigation */}
-          <Link href="/">Shop</Link>
+          {!isAdminPage && <Link href="/">Shop</Link>}
           <Link href="/seller" style={{ fontWeight: "600", color: "var(--accent)" }}>
             👤 Seller Dashboard
           </Link>
@@ -48,8 +49,8 @@ function HeaderContent() {
       ) : isLoggedIn && !isAuthPage ? (
         <>
           {/* Regular Customer Navigation */}
-          <Link href="/">Shop</Link>
-          <Link href="/cart">Cart</Link>
+          {!isAdminPage && <Link href="/">Shop</Link>}
+          {!isAdminPage && <Link href="/cart">Cart</Link>}
           <Link href="/dashboard" style={{ fontWeight: "600", color: "var(--accent)" }}>
             📊 My Dashboard
           </Link>

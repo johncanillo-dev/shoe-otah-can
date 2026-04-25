@@ -2158,10 +2158,5 @@ td {
 
 /* Shop background for login and home pages only */
 .shop-bg {
-  background-image: url('/shoe-store-bg.jpg');
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-attachment: fixed;
-  background-color: #fbf7ee;
+  background-color: #ffffff;
 }
