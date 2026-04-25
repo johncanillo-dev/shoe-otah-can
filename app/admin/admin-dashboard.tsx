@@ -54,21 +54,29 @@ export function AdminDashboard({ shopLocation = { latitude: 8.6324, longitude: 1
     // Fetch initial stats
     fetchStats();
 
-    // Subscribe to real-time changes on orders table
-    const subscription = supabase
-      .from("orders")
-      .on("*", (payload) => {
-        console.log("📡 Real-time order update detected:", payload);
-        // Refresh stats when order table changes
-        fetchStats();
-      })
+    // Subscribe to real-time changes on orders table using modern Supabase API
+    const channel = supabase
+      .channel('orders-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          console.log("📡 Real-time order update detected:", payload);
+          // Refresh stats when order table changes
+          fetchStats();
+        }
+      )
       .subscribe();
 
     // Fallback: Also poll every 30 seconds for extra reliability
     const interval = setInterval(fetchStats, 30000);
 
     return () => {
-      supabase.removeAllChannels();
+      supabase.removeChannel(channel);
       clearInterval(interval);
     };
   }, [isAdmin, getAdminDashboardStats]);
@@ -102,182 +110,86 @@ export function AdminDashboard({ shopLocation = { latitude: 8.6324, longitude: 1
   };
 
   return (
-    <div style={{ width: "100%" }}>
-      {/* Stats Cards - Live Supabase Data */}
-      <div className="admin-cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
-        {/* Users Card */}
-        <article style={{
-          padding: "1.5rem",
-          backgroundColor: "#fff",
-          borderRadius: "8px",
-          border: "1px solid #e0d5cc",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
-          <h2 style={{ fontSize: "0.9rem", fontWeight: "500", color: "#5e584d", margin: "0 0 0.5rem 0" }}>👥 Total Users</h2>
-          <p style={{ fontSize: "2rem", fontWeight: "700", color: "#2196f3", margin: "0" }}>
-            {stats?.totalUsers || 0}
-          </p>
-          <p style={{ fontSize: "0.75rem", color: "#999", margin: "0.5rem 0 0 0" }}>Registered customers</p>
-        </article>
-
-        {/* Total Orders Card */}
-        <article style={{
-          padding: "1.5rem",
-          backgroundColor: "#fff",
-          borderRadius: "8px",
-          border: "1px solid #e0d5cc",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
-          <h2 style={{ fontSize: "0.9rem", fontWeight: "500", color: "#5e584d", margin: "0 0 0.5rem 0" }}>📋 Total Orders</h2>
-          <p style={{ fontSize: "2rem", fontWeight: "700", color: "#ff9800", margin: "0" }}>
-            {stats?.totalOrders || 0}
-          </p>
-          <p style={{ fontSize: "0.75rem", color: "#999", margin: "0.5rem 0 0 0" }}>All time orders</p>
-        </article>
-
-        {/* Pending Orders Card */}
-        <article style={{
-          padding: "1.5rem",
-          backgroundColor: "#fff",
-          borderRadius: "8px",
-          border: "1px solid #e0d5cc",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
-          <h2 style={{ fontSize: "0.9rem", fontWeight: "500", color: "#5e584d", margin: "0 0 0.5rem 0" }}>⏳ Pending Orders</h2>
-          <p style={{ fontSize: "2rem", fontWeight: "700", color: "#ff6f00", margin: "0" }}>
-            {stats?.pendingOrders || 0}
-          </p>
-          <p style={{ fontSize: "0.75rem", color: "#999", margin: "0.5rem 0 0 0" }}>Awaiting processing</p>
-        </article>
-
-        {/* Processing Orders Card */}
-        <article style={{
-          padding: "1.5rem",
-          backgroundColor: "#fff",
-          borderRadius: "8px",
-          border: "1px solid #e0d5cc",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
-          <h2 style={{ fontSize: "0.9rem", fontWeight: "500", color: "#5e584d", margin: "0 0 0.5rem 0" }}>🔄 Processing Orders</h2>
-          <p style={{ fontSize: "2rem", fontWeight: "700", color: "#673ab7", margin: "0" }}>
-            {stats?.processingOrders || 0}
-          </p>
-          <p style={{ fontSize: "0.75rem", color: "#999", margin: "0.5rem 0 0 0" }}>Being prepared</p>
-        </article>
-
-        {/* Shipped Orders Card */}
-        <article style={{
-          padding: "1.5rem",
-          backgroundColor: "#fff",
-          borderRadius: "8px",
-          border: "1px solid #e0d5cc",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
-          <h2 style={{ fontSize: "0.9rem", fontWeight: "500", color: "#5e584d", margin: "0 0 0.5rem 0" }}>🚚 Shipped Orders</h2>
-          <p style={{ fontSize: "2rem", fontWeight: "700", color: "#2196f3", margin: "0" }}>
-            {stats?.shippedOrders || 0}
-          </p>
-          <p style={{ fontSize: "0.75rem", color: "#999", margin: "0.5rem 0 0 0" }}>In transit</p>
-        </article>
-
-        {/* Delivered Orders Card */}
-        <article style={{
-          padding: "1.5rem",
-          backgroundColor: "#fff",
-          borderRadius: "8px",
-          border: "1px solid #e0d5cc",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
-          <h2 style={{ fontSize: "0.9rem", fontWeight: "500", color: "#5e584d", margin: "0 0 0.5rem 0" }}>✅ Delivered Orders</h2>
-          <p style={{ fontSize: "2rem", fontWeight: "700", color: "#4caf50", margin: "0" }}>
-            {stats?.deliveredOrders || 0}
-          </p>
-          <p style={{ fontSize: "0.75rem", color: "#999", margin: "0.5rem 0 0 0" }}>Successfully delivered</p>
-        </article>
-
-        {/* Cancelled Orders Card */}
-        <article style={{
-          padding: "1.5rem",
-          backgroundColor: "#fff",
-          borderRadius: "8px",
-          border: "1px solid #e0d5cc",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
-          <h2 style={{ fontSize: "0.9rem", fontWeight: "500", color: "#5e584d", margin: "0 0 0.5rem 0" }}>❌ Cancelled Orders</h2>
-          <p style={{ fontSize: "2rem", fontWeight: "700", color: "#d32f2f", margin: "0" }}>
-            {stats?.cancelledOrders || 0}
-          </p>
-          <p style={{ fontSize: "0.75rem", color: "#999", margin: "0.5rem 0 0 0" }}>Cancelled</p>
-        </article>
-
-        {/* Total Products Card */}
-        <article style={{
-          padding: "1.5rem",
-          backgroundColor: "#fff",
-          borderRadius: "8px",
-          border: "1px solid #e0d5cc",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
-          <h2 style={{ fontSize: "0.9rem", fontWeight: "500", color: "#5e584d", margin: "0 0 0.5rem 0" }}>📦 Total Products</h2>
-          <p style={{ fontSize: "2rem", fontWeight: "700", color: "#9c27b0", margin: "0" }}>
-            {stats?.totalProducts || 0}
-          </p>
-          <p style={{ fontSize: "0.75rem", color: "#999", margin: "0.5rem 0 0 0" }}>In catalog</p>
-        </article>
-
-        {/* Total Revenue Card */}
-        <article style={{
-          padding: "1.5rem",
-          backgroundColor: "#fff",
-          borderRadius: "8px",
-          border: "1px solid #e0d5cc",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
-          <h2 style={{ fontSize: "0.9rem", fontWeight: "500", color: "#5e584d", margin: "0 0 0.5rem 0" }}>💰 Total Revenue</h2>
-          <p style={{ fontSize: "1.5rem", fontWeight: "700", color: "#4caf50", margin: "0" }}>
-            {formatCurrency(stats?.totalRevenue || 0)}
-          </p>
-          <p style={{ fontSize: "0.75rem", color: "#999", margin: "0.5rem 0 0 0" }}>From delivered orders</p>
-        </article>
-
-        {/* Average Order Value Card */}
-        <article style={{
-          padding: "1.5rem",
-          backgroundColor: "#fff",
-          borderRadius: "8px",
-          border: "1px solid #e0d5cc",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        }}>
-          <h2 style={{ fontSize: "0.9rem", fontWeight: "500", color: "#5e584d", margin: "0 0 0.5rem 0" }}>📊 Avg Order Value</h2>
-          <p style={{ fontSize: "1.5rem", fontWeight: "700", color: "#2196f3", margin: "0" }}>
-            {formatCurrency(stats?.averageOrderValue || 0)}
-          </p>
-          <p style={{ fontSize: "0.75rem", color: "#999", margin: "0.5rem 0 0 0" }}>Average per order</p>
-        </article>
+    <div style={{ padding: "2rem", minHeight: "100vh", backgroundColor: "#f5f1ed" }}>
+      {/* Header */}
+      <div style={{ marginBottom: "2rem" }}>
+        <h1 style={{ fontSize: "2.5rem", fontWeight: "bold", color: "#2c2420", marginBottom: "0.5rem" }}>📊 Admin Dashboard</h1>
+        <p style={{ color: "#5e584d" }}>Last updated: {lastUpdated || "Loading..."}</p>
       </div>
 
-      {/* Last Updated Info */}
-      <div style={{
-        padding: "1rem",
-        backgroundColor: "#f5f5f5",
-        borderRadius: "6px",
-        border: "1px solid #e0d5cc",
-        marginBottom: "2rem",
-        textAlign: "center",
-      }}>
-        <p style={{ fontSize: "0.85rem", color: "#666", margin: "0" }}>
-          � LIVE REAL-TIME DATA from Supabase • Last updated: {lastUpdated || "Loading..."} • Instant updates on order changes + 30s fallback refresh
-        </p>
+      {/* Stats Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
+        {/* Total Users */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>Total Users</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2c2420" }}>{stats?.totalUsers || 0}</p>
+        </div>
+
+        {/* Total Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>Total Orders</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2c2420" }}>{stats?.totalOrders || 0}</p>
+        </div>
+
+        {/* Pending Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>⏳ Pending</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#ff9800" }}>{stats?.pendingOrders || 0}</p>
+        </div>
+
+        {/* Processing Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>⚙️ Processing</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2196f3" }}>{stats?.processingOrders || 0}</p>
+        </div>
+
+        {/* Shipped Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>📦 Shipped</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#673ab7" }}>{stats?.shippedOrders || 0}</p>
+        </div>
+
+        {/* Delivered Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>✅ Delivered</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#4caf50" }}>{stats?.deliveredOrders || 0}</p>
+        </div>
+
+        {/* Cancelled Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>❌ Cancelled</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#f44336" }}>{stats?.cancelledOrders || 0}</p>
+        </div>
+
+        {/* Total Products */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>👟 Total Products</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2c2420" }}>{stats?.totalProducts || 0}</p>
+        </div>
+
+        {/* Total Revenue */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>💰 Total Revenue</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2c2420" }}>{formatCurrency(stats?.totalRevenue || 0)}</p>
+        </div>
+
+        {/* Average Order Value */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>📈 Avg Order Value</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2c2420" }}>{formatCurrency(stats?.averageOrderValue || 0)}</p>
+        </div>
       </div>
 
       {/* Store Location Map */}
-      <div style={{ marginBottom: "2rem" }}>
-        <Map
-          position={[shopLocation.latitude, shopLocation.longitude]}
-          title={`📍 Admin Store Location - ${shopLocation.name}`}
-          height="400px"
-          zoom={shopLocation.zoom}
-        />
+      <div style={{ marginTop: "2rem" }}>
+        <h2 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#2c2420", marginBottom: "1rem" }}>📍 Store Location</h2>
+        <div style={{ backgroundColor: "white", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", height: "400px" }}>
+          <Map
+  position={[shopLocation.latitude, shopLocation.longitude]}
+  title={shopLocation.name}
+  zoom={shopLocation.zoom}
+/>
+        </div>
       </div>
     </div>
   );
