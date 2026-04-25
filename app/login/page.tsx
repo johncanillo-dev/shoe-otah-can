@@ -69,75 +69,13 @@ export default function LoginPage() {
   return (
     <section className="auth-shell-pro">
       <div className="auth-container-pro">
-        {/* Left Side - Brand */}
-        <div className="auth-brand-side">
-          <div className="auth-brand-content">
-            <div className="auth-logo">
-  <img 
-    src="/shoe-otah-logo.png" 
-    alt="SHOE-OTAH Logo"
-    style={{ maxWidth: "120px", height: "auto" }}
-  />
-  <h2 className="auth-logo-text">SHOE-OTAH</h2>
-</div>
-            <h1 className="auth-brand-title">Your Trusted Online Marketplace "by John Canillo"</h1>
-            <p className="auth-brand-subtitle">
-              Discover premium shoes from verified sellers. Join thousands of happy customers shopping with confidence.
-            </p>
-            <div className="auth-features">
-              <div className="auth-feature-item">
-                <div className="feature-icon">✓</div>
-                <span>Verified Sellers</span>
-              </div>
-              <div className="auth-feature-item">
-                <div className="feature-icon">✓</div>
-                <span>Secure Payments</span>
-              </div>
-              <div className="auth-feature-item">
-                <div className="feature-icon">✓</div>
-                <span>Fast Delivery</span>
-              </div>
-            </div>
-
-            {/* Facebook Link */}
-            <div style={{ marginTop: "20px", textAlign: "center" }}>
-              <a 
-                href="https://www.facebook.com/Chyxzykiss/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "10px 20px",
-                  backgroundColor: "#1877F2",
-                  color: "white",
-                  borderRadius: "6px",
-                  textDecoration: "none",
-                  fontSize: "14px",
-                  fontWeight: "500",
-                  transition: "background-color 0.3s ease"
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#165FD8"}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#1877F2"}
-              >
-                <span>📱</span>
-                Follow us on Facebook
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <Link href="/register" className="btn btn-outline">
-  Create Account
-</Link>
-        {/* Right Side - Form */}
+        {/* Left Side - Form */}
         <div className="auth-form-side">
           <div className="auth-form-container">
             <div className="auth-header">
               <div style={{ display: "flex", alignItems: "center", gap: "10px", justifyContent: "center" }}>
-                <img 
-                  src="/shoe-otah-logo.png" 
+                <img
+                  src="/shoe-otah-logo.png"
                   alt="SHOE-OTAH Logo"
                   style={{ width: "40px", height: "40px" }}
                 />
@@ -363,6 +301,65 @@ export default function LoginPage() {
                 )}
               </form>
             )}
+          </div>
+        </div>
+
+        {/* Right Side - Brand */}
+        <div className="auth-brand-side">
+          <div className="auth-brand-content">
+            <div className="auth-logo">
+              <img
+                src="/shoe-otah-logo.png"
+                alt="SHOE-OTAH Logo"
+                style={{ maxWidth: "120px", height: "auto" }}
+              />
+              <h2 className="auth-logo-text">SHOE-OTAH</h2>
+            </div>
+            <h1 className="auth-brand-title">Your Trusted Online Marketplace "by John Canillo"</h1>
+            <p className="auth-brand-subtitle">
+              Discover premium shoes from shoe-otah. Join thousands of happy customers shopping with confidence.
+            </p>
+            <div className="auth-features">
+              <div className="auth-feature-item">
+                <div className="feature-icon">✓</div>
+                <span>Verified Sellers</span>
+              </div>
+              <div className="auth-feature-item">
+                <div className="feature-icon">✓</div>
+                <span>Secure Payments</span>
+              </div>
+              <div className="auth-feature-item">
+                <div className="feature-icon">✓</div>
+                <span>Fast Delivery</span>
+              </div>
+            </div>
+
+            {/* Facebook Link */}
+            <div style={{ marginTop: "20px", textAlign: "center" }}>
+              <a
+                href="https://www.facebook.com/Chyxzykiss/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "10px 20px",
+                  backgroundColor: "#1877F2",
+                  color: "white",
+                  borderRadius: "6px",
+                  textDecoration: "none",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  transition: "background-color 0.3s ease"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#165FD8"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#1877F2"}
+              >
+                <span>📱</span>
+                Follow us on Facebook
+              </a>
+            </div>
           </div>
         </div>
       </div>

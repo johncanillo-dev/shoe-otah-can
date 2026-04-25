@@ -77,21 +77,34 @@ export default function RegisterPage() {
         <p className="auth-footnote" style={{ fontSize: "0.85rem", color: "#999", marginTop: "1rem" }}>
           ℹ️ You must create an account before you can login.
         </p>
+
+        {/* Facebook Link */}
+        <div style={{ marginTop: "20px", textAlign: "center" }}>
+          <a
+            href="https://www.facebook.com/Chyxzykiss/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 20px",
+              backgroundColor: "#1877F2",
+              color: "white",
+              borderRadius: "6px",
+              textDecoration: "none",
+              fontSize: "14px",
+              fontWeight: "500",
+              transition: "background-color 0.3s ease"
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#165FD8"}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#1877F2"}
+          >
+            <span>📱</span>
+            Follow us on Facebook
+          </a>
+        </div>
       </div>
     </section>
   );
-
-{/* Facebook Link */}
-<div style={{ marginTop: "20px", textAlign: "center" }}>
-  <a
-    href="https://www.facebook.com/Chyxzykiss/"
-    target="_blank"
-    rel="noopener noreferrer"
-    className="facebook-btn"
-  >
-    <span>📱</span>
-    Follow us on Facebook
-  </a>
-</div>
-
 }
