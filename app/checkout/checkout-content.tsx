@@ -5,9 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useCart } from "@/lib/cart-context";
-import { useOrder, type PaymentMethod, type CustomerDetails, type Address } from "@/lib/order-context";
+import {
+  useOrder,
+  type PaymentMethod,
+  type CustomerDetails,
+  type Address,
+} from "@/lib/order-context";
 
-// ✅ Add proper type instead of "any"
 type CartItem = {
   id: string;
   name: string;
@@ -19,11 +23,13 @@ type CartItem = {
 export default function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
   const { isLoggedIn, user } = useAuth();
   const { items } = useCart();
   const { createOrder, createDatabaseOrder } = useOrder();
-  
+
   const directBuyItem = searchParams.get("item");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,8 +43,10 @@ export default function CheckoutContent() {
   const [city, setCity] = useState("");
   const [province, setProvince] = useState("");
   const [postalCode, setPostalCode] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cod");
+  const [paymentMethod, setPaymentMethod] =
+    useState<PaymentMethod>("cod");
 
+  // 🔥 AUTH CHECK
   useEffect(() => {
     if (!isLoggedIn) {
       router.push("/login");
@@ -59,17 +67,20 @@ export default function CheckoutContent() {
     );
   }
 
-  // ✅ Typed checkout items
-  let checkoutItems: CartItem[] = items;
+  // 🔥 SAFE CART
+  let checkoutItems: CartItem[] = items || [];
 
   if (directBuyItem) {
     try {
-      checkoutItems = [JSON.parse(decodeURIComponent(directBuyItem))];
+      checkoutItems = [
+        JSON.parse(decodeURIComponent(directBuyItem)),
+      ];
     } catch {
-      checkoutItems = items;
+      checkoutItems = items || [];
     }
   }
 
+  // ❌ EMPTY CART
   if (!checkoutItems.length) {
     return (
       <section className="auth-shell">
@@ -84,98 +95,126 @@ export default function CheckoutContent() {
     );
   }
 
+  // 💰 TOTALS
   const checkoutTotal = checkoutItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
+
   const tax = checkoutTotal * 0.08;
   const finalTotal = checkoutTotal + tax;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // 🔥 SUBMIT HANDLER (FULL FIX)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSubmitting) return;
     setIsSubmitting(true);
 
-    if (!user?.id) {
-      alert("User not found");
-      return;
-    }
+    try {
+      // ✅ VALIDATION
+      if (!user?.id) throw new Error("User not found");
 
-    const customerDetails: CustomerDetails = {
-      firstName,
-      lastName,
-      email,
-      phone,
-    };
-
-    const address: Address = {
-      street,
-      barangay,
-      city,
-      province,
-      postalCode,
-    };
-
-    // ✅ Local order (unchanged)
-    createOrder({
-  items: checkoutItems.map((item) => ({
-    id: item.id,
-    name: item.name,
-    price: item.price,
-    quantity: item.quantity,
-    category: item.category ?? "uncategorized", // ✅ keep this
-  })),
-  customerDetails,
-  address,
-  paymentMethod,
-  subtotal: checkoutTotal,
-  tax,
-  total: finalTotal,
-});
-
-    // ✅ FIXED DATABASE SAVE
-    const saveDatabaseOrders = async () => {
-      try {
-        const deliveryAddress = `${street}, ${barangay}, ${city}, ${province} ${postalCode}`;
-
-        const savePromises = checkoutItems.map((item) =>
-          createDatabaseOrder({
-            userId: user.id,
-            productId: item.id,
-            productName: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            totalAmount: item.price * item.quantity,
-
-            // ✅ REQUIRED FIELDS (FIX)
-            status: "pending",
-            isDelivered: false,
-
-            deliveryAddress,
-            deliveryNotes: `Payment: ${paymentMethod} | ${firstName} ${lastName} | ${phone}`,
-            estimatedDelivery: new Date(
-              Date.now() + 7 * 24 * 60 * 60 * 1000
-            )
-              .toISOString()
-              .split("T")[0],
-          })
-        );
-
-        await Promise.all(savePromises);
-
-        router.push("/order-confirmation");
-      } catch (error) {
-        console.error(error);
-        router.push("/order-confirmation");
+      if (!firstName || !lastName || !phone || !street || !city) {
+        alert("Please fill all required fields");
+        return;
       }
-    };
 
-    saveDatabaseOrders();
+      if (!checkoutItems.length) {
+        alert("Cart is empty");
+        return;
+      }
+
+      const customerDetails: CustomerDetails = {
+        firstName,
+        lastName,
+        email,
+        phone,
+      };
+
+      const address: Address = {
+        street,
+        barangay,
+        city,
+        province,
+        postalCode,
+      };
+
+      // ✅ LOCAL ORDER
+      createOrder({
+        items: checkoutItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          category: item.category ?? "uncategorized",
+        })),
+        customerDetails,
+        address,
+        paymentMethod,
+        subtotal: checkoutTotal,
+        tax,
+        total: finalTotal,
+      });
+
+      // ✅ DATABASE SAVE
+      const deliveryAddress = `${street}, ${barangay}, ${city}, ${province} ${postalCode}`;
+
+      const savePromises = checkoutItems.map((item) =>
+        createDatabaseOrder({
+          userId: user.id,
+          productId: item.id,
+          productName: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          totalAmount: item.price * item.quantity,
+          status: "pending",
+          isDelivered: false,
+          deliveryAddress,
+          deliveryNotes: `Payment: ${paymentMethod} | ${firstName} ${lastName} | ${phone}`,
+          estimatedDelivery: new Date(
+            Date.now() + 7 * 24 * 60 * 60 * 1000
+          )
+            .toISOString()
+            .split("T")[0],
+        })
+      );
+
+      await Promise.all(savePromises);
+
+      // ✅ CLEAR CART
+      localStorage.removeItem("cart");
+
+      // if you have context method:
+      // clearCart();
+
+      // ✅ SUCCESS
+      router.push("/order-confirmation");
+
+    } catch (error) {
+      console.error("Checkout error:", error);
+      alert("Checkout failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    // 🔥 UI unchanged (your UI is already fine)
     <section className="checkout-shell container">
-      {/* KEEP YOUR EXISTING JSX */}
+      {/* 🔥 KEEP YOUR EXISTING UI HERE */}
+      {/* Just make sure your form uses: */}
+      
+      <form onSubmit={handleSubmit}>
+        {/* your inputs here */}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="btn btn-primary"
+        >
+          {isSubmitting ? "Processing..." : "Proceed to Checkout"}
+        </button>
+      </form>
     </section>
   );
 }
