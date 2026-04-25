@@ -87,42 +87,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (sessionToken && supabase) {
         // Validate session from sessions table (cross-device support)
         const { data: sessionData, error: sessionError } = await (supabase
-          .from("sessions")
-          .select("user_id, is_active, expires_at")
-          .eq("session_token", sessionToken)
-          .single() as any);
+  .from("sessions")
+  .select("user_id, is_active, expires_at")
+  .eq("session_token", sessionToken)
+  .maybeSingle() as any);
 
-        if (sessionError || !sessionData || !sessionData.is_active) {
-          console.log("Session invalid or expired");
-          logout();
-          return;
-        }
+if (sessionError) {
+  console.error("Session fetch error:", sessionError);
+  logout();
+  return;
+}
 
-        // Check if session expired
-        if (sessionData.expires_at && new Date(sessionData.expires_at) < new Date()) {
-          console.log("Session expired");
-          logout();
-          return;
-        }
+if (!sessionData || !sessionData.is_active) {
+  console.log("Session invalid or expired");
+  logout();
+  return;
+}
 
         // Query user data from users table
         const { data: userData, error: userError } = await (supabase
-          .from("users")
-          .select("*")
-          .eq("id", sessionData.user_id)
-          .single() as any);
+  .from("users")
+  .select("*")
+  .eq("id", sessionData.user_id)
+  .maybeSingle() as any);
 
         if (userData && !userError) {
           const user: User = {
-            id: userData.id,
-            email: userData.email,
-            name: userData.name,
-            city: userData.city,
-            createdAt: userData.created_at,
-            isActive: userData.is_active,
-          };
-          setUser(user);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+  id: userData.id,
+  email: userData.email,
+  name: userData.name,
+  city: userData.city,
+  createdAt: userData.created_at,
+  isActive: userData.is_active,
+};
+
+setUser(user);
+localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
 
           // Update last activity timestamp
           await supabase
@@ -333,30 +333,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Hash the provided password with same salt
       const hashedInput = simpleHash(password + email);
 
-      // Supabase is the source of truth - only check cloud database
-      if (!supabase) {
-        return { success: false, error: "Supabase not configured. Please try again." };
-      }
+      /// Supabase is the source of truth - only check cloud database
+if (!supabase) {
+  return { success: false, error: "Supabase not configured. Please try again." };
+}
 
-      try {
-        const { data: foundUser, error: userError } = await (supabase
-          .from("users")
-          .select("*")
-          .eq("email", email.toLowerCase())
-          .single() as any);
+try {
+  const { data: foundUser, error: userError } = await (supabase
+    .from("users")
+    .select("*")
+    .eq("email", email.toLowerCase())
+    .maybeSingle() as any);
 
-        if (userError) {
-          console.error("Error finding user:", userError);
-          if (userError.code === 'PGRST116') {
-            return { success: false, error: "Account not found. Please register first." };
-          }
-          return { success: false, error: "Failed to login. Please try again." };
-        }
+  // 🔴 Handle real database error only
+  if (userError) {
+    console.error("Error finding user:", userError);
+    return { success: false, error: "Failed to login. Please try again." };
+  }
 
-        if (!foundUser) {
-          return { success: false, error: "Account not found. Please register first." };
-        }
-
+  // 🔴 Handle user not found (correct way)
+  if (!foundUser) {
+    return { success: false, error: "Account not found. Please register first." };
+  }
         // Verify password matches
         if (!foundUser.password || foundUser.password !== hashedInput) {
           return { success: false, error: "Incorrect password" };

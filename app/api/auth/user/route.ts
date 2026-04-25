@@ -20,20 +20,30 @@ export async function GET(request: Request) {
         { status: 500 }
       );
     }
-
+    
     // Fetch user data
-    const { data: userData, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", userId)
-      .single();
+const { data: userData, error } = await supabase
+  .from("users")
+  .select("*")
+  .eq("id", userId)
+  .maybeSingle();
 
-    if (error || !userData) {
-      return Response.json(
-        { success: false, error: "User not found" },
-        { status: 404 }
-      );
-    }
+// 🔴 Handle database error
+if (error) {
+  console.error("User fetch error:", error);
+  return Response.json(
+    { success: false, error: "Failed to fetch user" },
+    { status: 500 }
+  );
+}
+
+// 🔴 Handle user not found
+if (!userData) {
+  return Response.json(
+    { success: false, error: "User not found" },
+    { status: 404 }
+  );
+}
 
     return Response.json({
       success: true,
