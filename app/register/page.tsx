@@ -80,4 +80,18 @@ export default function RegisterPage() {
       </div>
     </section>
   );
+
+{/* Facebook Link */}
+<div style={{ marginTop: "20px", textAlign: "center" }}>
+  <a
+    href="https://www.facebook.com/Chyxzykiss/"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="facebook-btn"
+  >
+    <span>📱</span>
+    Follow us on Facebook
+  </a>
+</div>
+
 }
