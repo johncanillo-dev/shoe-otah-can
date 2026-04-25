@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     }
 
     const supabase = await createSupabaseServerClient();
-    
+
     if (!supabase) {
       return Response.json(
         { success: false, error: "Database not configured" },
@@ -64,6 +64,19 @@ export async function POST(request: Request) {
       );
     }
 
+    // ✅ ADD THIS BLOCK (FIX FOR SESSION)
+    try {
+      await supabase.from("sessions").insert({
+        user_id: foundUser.id,
+        session_token: crypto.randomUUID(),
+        is_active: true,
+      });
+    } catch (sessionError) {
+      console.warn("Session creation failed:", sessionError);
+      // ⚠️ Do NOT break login if session fails
+    }
+
+    // ✅ RESPONSE (unchanged)
     return Response.json({
       success: true,
       user: {
@@ -75,6 +88,7 @@ export async function POST(request: Request) {
         isActive: foundUser.isActive,
       },
     });
+
   } catch (error) {
     console.error("Login API error:", error);
     return Response.json(
