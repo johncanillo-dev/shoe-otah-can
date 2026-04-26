@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useCart } from "@/lib/cart-context";
+import { useAppSettings } from "@/lib/app-settings-context";
 import {
   useOrder,
   type PaymentMethod,
@@ -27,6 +28,7 @@ export default function CheckoutContent() {
 
   const { isLoggedIn, user } = useAuth();
   const { items, clearCart } = useCart();
+  const { settings } = useAppSettings();
   const { createOrder, createDatabaseOrder } = useOrder();
 
   const directBuyItem = searchParams.get("item");
@@ -103,7 +105,8 @@ export default function CheckoutContent() {
   );
 
   const tax = checkoutTotal * 0.08;
-  const finalTotal = checkoutTotal + tax;
+  const deliveryFee = checkoutTotal >= settings.free_shipping_threshold ? 0 : settings.delivery_fee;
+  const finalTotal = checkoutTotal + tax + deliveryFee;
 
   // Submit handler
   const handleSubmit = async (e: React.FormEvent) => {
@@ -316,11 +319,11 @@ export default function CheckoutContent() {
               <legend className="form-legend">Payment Method</legend>
               <div className="payment-options">
                 {([
-                  { value: "cod", label: "Cash on Delivery (COD)", desc: "Pay when you receive your order" },
-                  { value: "gcash", label: "GCash", desc: "Pay via GCash e-wallet" },
-                  { value: "paymaya", label: "PayMaya", desc: "Pay via PayMaya" },
-                  { value: "bankTransfer", label: "Bank Transfer", desc: "Transfer to our bank account" },
-                ] as { value: PaymentMethod; label: string; desc: string }[]).map((option) => (
+                  { value: "cod", label: "Cash on Delivery (COD)", desc: "Pay when you receive your order", enabled: settings.enable_cod },
+                  { value: "gcash", label: "GCash", desc: "Pay via GCash e-wallet", enabled: settings.enable_gcash },
+                  { value: "paymaya", label: "PayMaya", desc: "Pay via PayMaya", enabled: settings.enable_paymaya },
+                  { value: "bankTransfer", label: "Bank Transfer", desc: "Transfer to our bank account", enabled: settings.enable_bank_transfer },
+                ] as { value: PaymentMethod; label: string; desc: string; enabled: boolean }[]).filter(o => o.enabled).map((option) => (
                   <label key={option.value} className="payment-option">
                     <input
                       type="radio"
@@ -377,7 +380,7 @@ export default function CheckoutContent() {
             </div>
             <div className="summary-line">
               <span>Shipping</span>
-              <strong>Free</strong>
+              <strong>{deliveryFee === 0 ? 'Free' : '₱' + deliveryFee.toFixed(2)}</strong>
             </div>
             <div className="summary-line summary-total">
               <span>Total</span>

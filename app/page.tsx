@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useMemo, useEffect } from "react";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
+import { useAppSettings } from "@/lib/app-settings-context";
 import { fetchProducts, subscribeToProducts } from "@/lib/product-helpers";
 
 type Product = {
@@ -22,6 +23,7 @@ const DEFAULT_CATEGORIES = ["Shoes", "Shirts", "Slippers", "Socks", "Necklace", 
 export default function Home() {
   const router = useRouter();
   const { isLoggedIn } = useAuth();
+  const { settings } = useAppSettings();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [activeCategory, setActiveCategory] = useState<string>("All");
@@ -163,6 +165,20 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Store Closed Banner */}
+      {!settings.store_open && (
+        <div style={{ padding: "1rem", backgroundColor: "#f8d7da", color: "#721c24", borderRadius: "8px", margin: "1rem auto", maxWidth: "1200px", textAlign: "center", fontWeight: "600" }}>
+          🚫 Store is currently closed. Please check back later.
+        </div>
+      )}
+
+      {/* Announcement Banner */}
+      {settings.announcement_banner && (
+        <div style={{ padding: "0.75rem 1rem", backgroundColor: "#fff3cd", color: "#856404", borderRadius: "8px", margin: "1rem auto", maxWidth: "1200px", textAlign: "center", fontWeight: "500" }}>
+          📢 {settings.announcement_banner}
+        </div>
+      )}
 
       <section className="catalog container" aria-label="Product catalog">
         <div className="catalog-head">

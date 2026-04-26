@@ -3,6 +3,7 @@
 import { useAuth } from "@/lib/auth-context";
 import { useOrder, type DatabaseOrder } from "@/lib/order-context";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useAppSettings } from "@/lib/app-settings-context";
 import { useCart } from "@/lib/cart-context";
 import Map from "@/app/components/map";
 import ShopCard from "@/app/components/shop-card";
@@ -25,7 +26,8 @@ type Product = {
 const DEFAULT_CATEGORIES = ["Shoes", "Shirts", "Slippers", "Socks", "Necklace", "Beauty Product", "Pants"];
 
 export default function DashboardContent() {
-  const { user } = useAuth();
+const { user } = useAuth();
+  const { settings } = useAppSettings();
   const { items, addItem } = useCart();
   const [deliveryInfoMap, setDeliveryInfoMap] = useState<Record<string, any>>({});
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -230,6 +232,20 @@ export default function DashboardContent() {
         email={user?.name}
         badge="Customer Account"
       />
+
+      {/* Store Closed Banner */}
+      {!settings.store_open && (
+        <div style={{ padding: "1rem", backgroundColor: "#f8d7da", color: "#721c24", borderRadius: "8px", marginBottom: "1.5rem", textAlign: "center", fontWeight: "600" }}>
+          🚫 Store is currently closed. Please check back later.
+        </div>
+      )}
+
+      {/* Announcement Banner */}
+      {settings.announcement_banner && (
+        <div style={{ padding: "0.75rem 1rem", backgroundColor: "#fff3cd", color: "#856404", borderRadius: "8px", marginBottom: "1.5rem", textAlign: "center", fontWeight: "500" }}>
+          📢 {settings.announcement_banner}
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem", borderBottom: "2px solid #e0d5cc" }}>
