@@ -486,7 +486,6 @@ const { user } = useAuth();
           <div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
             <ShopCard 
               shopName={shopLocation.name}
-              shopImage={shopLocation.image}
               latitude={shopLocation.latitude}
               longitude={shopLocation.longitude}
               zoom={shopLocation.zoom}

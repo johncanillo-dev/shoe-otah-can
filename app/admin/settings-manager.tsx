@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useAuth, User } from "@/lib/auth-context";
 import { useAppSettings } from "@/lib/app-settings-context";
+import { useShopBranding } from "@/lib/shop-context";
+import { uploadShopImage, getCacheBustedUrl } from "@/lib/shop-helpers";
 
 export const SettingsManager = () => {
   const { user, updateUserProfile } = useAuth();
@@ -42,6 +44,25 @@ export const SettingsManager = () => {
   };
   const showSuccess = (msg: string) => { setSuccessMessage(msg); setTimeout(() => setSuccessMessage(""), 3000); };
   const showError = (msg: string) => { setErrorMessage(msg); setTimeout(() => setErrorMessage(""), 3000); };
+
+  // Shop Branding Upload Section
+  const { branding, isLoading: brandingLoading } = useShopBranding();
+  const [uploadingType, setUploadingType] = useState<"logo" | "banner" | null>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "logo" | "banner") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingType(type);
+    try {
+      await uploadShopImage(file, type);
+      showSuccess(`${type === "logo" ? "Logo" : "Banner"} uploaded and synced!`);
+    } catch (err: any) {
+      showError(err.message || `Failed to upload ${type}`);
+    } finally {
+      setUploadingType(null);
+    }
+  };
 
   return (
     <div className="settings-section">
@@ -124,6 +145,66 @@ export const SettingsManager = () => {
               <input type="checkbox" checked={systemSettings.maintenanceMode} onChange={e => handleSystemSettingChange("maintenanceMode", e.target.checked)} style={{ width: "18px", height: "18px", cursor: "pointer" }} />
               <span>{systemSettings.maintenanceMode ? "🔧 Maintenance mode (ON)" : "🔧 Maintenance mode"}</span>
             </label>
+          </div>
+
+          {/* Shop Branding (Real-time synced) */}
+          <div style={{ marginBottom: "2rem", paddingBottom: "1.5rem", borderBottom: "1px solid #e0d5cc" }}>
+            <h3 style={{ fontSize: "0.95rem", fontWeight: "600", marginBottom: "1rem", color: "#5e584d", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              🏪 Shop Branding <span style={{ fontSize: "0.75rem", color: "#4caf50", fontWeight: "500" }}>● Live Sync</span>
+            </h3>
+            {brandingLoading && <p style={{ fontSize: "0.85rem", color: "#999" }}>Loading branding...</p>}
+
+            {/* Logo Upload */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", fontSize: "0.85rem", marginBottom: "0.5rem", color: "#5e584d", fontWeight: "500" }}>Shop Logo</label>
+              {branding.logo_url && (
+                <div style={{ marginBottom: "0.75rem", padding: "0.5rem", backgroundColor: "#f9f9f9", borderRadius: "6px", display: "inline-block" }}>
+                  <img
+                    src={getCacheBustedUrl(branding.logo_url)}
+                    alt="Shop Logo"
+                    style={{ width: "80px", height: "80px", objectFit: "contain", borderRadius: "4px" }}
+                  />
+                </div>
+              )}
+              <div>
+                <label style={{ display: "inline-block", cursor: "pointer", padding: "0.5rem 1rem", backgroundColor: "var(--accent)", color: "white", borderRadius: "4px", fontSize: "0.85rem", fontWeight: "500" }}>
+                  {uploadingType === "logo" ? "⏳ Uploading..." : "📁 Upload Logo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, "logo")}
+                    disabled={uploadingType === "logo"}
+                    style={{ display: "none" }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Banner Upload */}
+            <div>
+              <label style={{ display: "block", fontSize: "0.85rem", marginBottom: "0.5rem", color: "#5e584d", fontWeight: "500" }}>Shop Banner</label>
+              {branding.banner_url && (
+                <div style={{ marginBottom: "0.75rem", padding: "0.5rem", backgroundColor: "#f9f9f9", borderRadius: "6px" }}>
+                  <img
+                    src={getCacheBustedUrl(branding.banner_url)}
+                    alt="Shop Banner"
+                    style={{ width: "100%", maxHeight: "120px", objectFit: "cover", borderRadius: "4px" }}
+                  />
+                </div>
+              )}
+              <div>
+                <label style={{ display: "inline-block", cursor: "pointer", padding: "0.5rem 1rem", backgroundColor: "var(--accent)", color: "white", borderRadius: "4px", fontSize: "0.85rem", fontWeight: "500" }}>
+                  {uploadingType === "banner" ? "⏳ Uploading..." : "📁 Upload Banner"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, "banner")}
+                    disabled={uploadingType === "banner"}
+                    style={{ display: "none" }}
+                  />
+                </label>
+              </div>
+            </div>
           </div>
 
           {/* App Settings (Real-time synced) */}

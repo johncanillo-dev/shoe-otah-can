@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { useShopBranding } from "@/lib/shop-context";
+import { getCacheBustedUrl } from "@/lib/shop-helpers";
 
 const MapComponent = dynamic(() => import("./map-component"), {
   ssr: false,
@@ -35,11 +37,12 @@ interface ShopLocation {
 
 export default function ShopCard({
   shopName = "Our Store",
-  shopImage = "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=300&fit=crop",
+  shopImage,
   latitude = 8.81975,
   longitude = 125.69423,
   zoom = 18,
 }: ShopCardProps) {
+  const { branding } = useShopBranding();
   const [isTrackingEnabled, setIsTrackingEnabled] = useState(true); // Default to true (show by default)
   const [showMap, setShowMap] = useState(true); // Default to true (show map by default)
   const [shopLocation, setShopLocation] = useState<ShopLocation>({
@@ -50,6 +53,9 @@ export default function ShopCard({
     zoom: 18,
     phone: "0950 703 1066",
   });
+
+  // Use dynamic banner from shop branding if no explicit shopImage prop
+  const displayImage = shopImage || branding.banner_url || "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=300&fit=crop";
 
   // Load shop location from localStorage on mount
   useEffect(() => {
@@ -110,7 +116,8 @@ export default function ShopCard({
         }}
       >
         <img
-          src={shopImage || "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=300&fit=crop"}
+          key={displayImage}
+          src={getCacheBustedUrl(displayImage)}
           alt={shopLocation.name}
           style={{
             width: "100%",

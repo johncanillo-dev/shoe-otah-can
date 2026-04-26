@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useSeller } from "@/lib/seller-context";
+import { useShopBranding } from "@/lib/shop-context";
+import { getCacheBustedUrl } from "@/lib/shop-helpers";
 import { QuickUserSettings } from "@/app/components/quick-user-settings";
 import { QuickSellerSettings } from "@/app/components/quick-seller-settings";
 
@@ -99,6 +101,8 @@ function MainContent({ children }: { children: React.ReactNode }) {
 }
 
 export function LayoutClient({ children }: { children: React.ReactNode }) {
+  const { branding } = useShopBranding();
+
   return (
     <>
       <header
@@ -113,11 +117,12 @@ export function LayoutClient({ children }: { children: React.ReactNode }) {
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", fontWeight: "bold", fontSize: "1.5rem", color: "var(--accent)" }}>
           <img 
-            src="/shoe-otah-logo.png" 
+            key={branding.logo_url}
+            src={getCacheBustedUrl(branding.logo_url) || "/shoe-otah-logo.png"} 
             alt="Shoe Otah Boutique Logo"
-            style={{ width: "45px", height: "45px" }}
+            style={{ width: "45px", height: "45px", objectFit: "contain" }}
           />
-          Shoe Otah Boutique
+          {branding.shop_name || "Shoe Otah Boutique"}
         </div>
         <nav style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
           <HeaderContent />

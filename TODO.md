@@ -1,55 +1,25 @@
-# Real-Time App Settings Implementation - COMPLETE
+# Real-Time Shop Image Update Implementation
 
-## Files Created/Modified
+## Status: ✅ COMPLETE
 
-### 1. lib/app-settings-context.tsx (NEW)
-- React context with Supabase integration
-- Fetches settings from `app_settings` table
-- Real-time subscription via `supabase.channel("settings-sync")`
-- `updateSetting(key, value)` for admin updates
-- `updateSettings(updates)` for batch updates
-- Default settings: store_open, delivery_fee, enable_cod, etc.
+## Goal
+When admin uploads a new logo/banner, all connected clients (admin + customers) see the update instantly without refreshing.
 
-### 2. app/root-layout-client.tsx (EDITED)
-- Wrapped entire app with `<AppSettingsProvider>`
+## Steps Completed
 
-### 3. app/admin/settings-manager.tsx (EDITED)
-- Added new "App Settings" section with Live Sync indicator
-- Store open/closed toggle
-- Maintenance mode toggle
-- Notification & email alert toggles
-- Payment method toggles (COD, GCash, PayMaya, Bank Transfer)
-- Delivery fee input
-- Free shipping threshold input
-- Discount percentage input
-- Announcement banner input
-- All changes call `updateSetting()` and sync to all users
+- [x] 1. Create `SHOP_BRANDING_SQL.md` - SQL for `shop_branding` table, RLS, realtime
+- [x] 2. Create `lib/shop-context.tsx` - React context with real-time subscription
+- [x] 3. Create `lib/shop-helpers.ts` - Upload image to Supabase Storage + update DB
+- [x] 4. Update `app/root-layout-client.tsx` - Wrap app with `<ShopProvider>`
+- [x] 5. Update `app/admin/settings-manager.tsx` - Add logo/banner upload UI
+- [x] 6. Update `app/layout-client.tsx` - Dynamic logo from context
+- [x] 7. Update `app/components/shop-card.tsx` - Dynamic banner from context
+- [x] 8. Update `app/dashboard/dashboard-content.tsx` - Dynamic shop image from context
 
-### 4. app/dashboard/dashboard-content.tsx (EDITED)
-- Added `useAppSettings()` hook
-- Store closed banner display
-- Announcement banner display
+## Next Steps (User Action Required)
 
-### 5. app/page.tsx (EDITED)
-- Added `useAppSettings()` hook
-- Store closed banner on homepage
-- Announcement banner on homepage
+1. **Run the SQL** in `SHOP_BRANDING_SQL.md` in your Supabase SQL Editor
+2. **Create Storage Bucket**: Go to Supabase Dashboard > Storage > Create public bucket `shop-images`
+3. **Enable Realtime**: Database > Replication > Check `shop_branding` for INSERT/UPDATE/DELETE
+4. **Test**: Upload a logo/banner from admin dashboard, verify all client tabs update instantly
 
-### 6. app/checkout/checkout-content.tsx (EDITED)
-- Added `useAppSettings()` hook
-- Dynamic delivery fee based on `settings.delivery_fee`
-- Free shipping when total >= `settings.free_shipping_threshold`
-- Payment methods filtered by enabled settings
-
-### 7. APP_SETTINGS_SQL.md (NEW)
-- SQL to create `app_settings` table
-- RLS policies (public read, admin update)
-- Realtime publication setup
-- Default settings insertion
-
-## Next Steps
-
-1. Run the SQL in APP_SETTINGS_SQL.md in your Supabase SQL Editor
-2. Enable Realtime for `app_settings` table in Supabase Dashboard
-3. Test admin toggles in the admin dashboard
-4. Open multiple browser tabs to verify real-time sync
