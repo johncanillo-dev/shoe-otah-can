@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SectionHeader } from "@/app/components/ui/section-header";
-import { Card } from "@/app/components/ui/card";
 
 const DEFAULT_CATEGORIES = ["Shoes", "Shirts", "Slippers", "Sacks"];
 
@@ -47,55 +45,91 @@ export function CategoryManager() {
   };
 
   return (
-    <Card>
-      <SectionHeader
-        title="Product Categories"
-        subtitle={`${categories.length} categories`}
-        action={
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2 bg-[var(--accent)] text-white rounded-md font-semibold cursor-pointer hover:opacity-90 transition-opacity text-sm"
-          >
-            {showForm ? "Cancel" : "+ Add Category"}
-          </button>
-        }
-      />
+    <div style={{ marginBottom: "2rem", padding: "1.5rem", border: "1px solid var(--line)", borderRadius: "8px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <h3>Product Categories ({categories.length})</h3>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          style={{
+            padding: "0.5rem 1rem",
+            backgroundColor: "var(--accent)",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontWeight: "600",
+          }}
+        >
+          {showForm ? "Cancel" : "+ Add Category"}
+        </button>
+      </div>
 
       {showForm && (
-        <div className="mb-6 p-4 bg-[#f9f9f9] rounded-lg">
+        <div style={{ marginBottom: "1rem", padding: "1rem", backgroundColor: "#f9f9f9", borderRadius: "6px" }}>
           <input
             type="text"
             placeholder="Enter new category name..."
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleAddCategory()}
-            className="w-full px-4 py-3 mb-3 border border-[var(--line)] rounded-lg text-base box-border focus:outline-none focus:border-[var(--accent)]"
+            style={{
+              width: "100%",
+              padding: "0.75rem",
+              marginBottom: "0.5rem",
+              border: "1px solid var(--line)",
+              borderRadius: "4px",
+              fontSize: "1rem",
+            }}
           />
           <button
             onClick={handleAddCategory}
-            className="px-4 py-2 bg-[var(--accent)] text-white rounded-md cursor-pointer font-semibold hover:opacity-90 transition-opacity text-sm"
+            style={{
+              padding: "0.5rem 1rem",
+              backgroundColor: "var(--accent)",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontWeight: "600",
+            }}
           >
-            Add Category
+            Add
           </button>
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
         {categories.map((category) => (
           <div
             key={category}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[var(--line)] rounded-lg font-medium"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.75rem 1rem",
+              backgroundColor: "var(--line)",
+              borderRadius: "6px",
+              fontWeight: "500",
+            }}
           >
             {category}
             <button
               onClick={() => handleRemoveCategory(category)}
-              className="bg-none border-none text-[#d32f2f] cursor-pointer text-lg leading-none p-0 ml-1 hover:opacity-70"
+              style={{
+                background: "none",
+                border: "none",
+                color: "#d32f2f",
+                cursor: "pointer",
+                fontSize: "1.2rem",
+                padding: "0",
+                marginLeft: "0.5rem",
+              }}
             >
               ✕
             </button>
           </div>
         ))}
       </div>
-    </Card>
+    </div>
   );
 }

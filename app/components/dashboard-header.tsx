@@ -12,30 +12,74 @@ interface DashboardHeaderProps {
 
 export const DashboardHeader = ({ title, subtitle, email, badge, settingsIcon }: DashboardHeaderProps) => {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-6 border-b border-[var(--line)] mb-8">
+    <div style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "1.5rem 0",
+      borderBottom: "1px solid #e0d5cc",
+      marginBottom: "2rem",
+    }}>
+      {/* Left Side - Title & Info */}
       <div>
-        <p className="text-xs font-semibold text-[#ff9800] mb-2 m-0 uppercase tracking-wider">
+        <p style={{
+          fontSize: "0.85rem",
+          fontWeight: "600",
+          color: "#ff9800",
+          margin: "0 0 0.5rem 0",
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+        }}>
           {subtitle}
         </p>
-        <h1 className="text-2xl md:text-3xl font-bold text-[#2c2c2c] mb-2 m-0">
+        <h1 style={{
+          fontSize: "2rem",
+          fontWeight: "700",
+          color: "#2c2c2c",
+          margin: "0 0 0.5rem 0",
+        }}>
           {title}
         </h1>
         {email && (
-          <p className="text-sm text-[#666] m-0">
+          <p style={{
+            fontSize: "0.9rem",
+            color: "#666",
+            margin: "0",
+          }}>
             {email}
           </p>
         )}
       </div>
 
-      <div className="flex items-center gap-3">
+      {/* Right Side - Settings Icon & Badge */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "1rem",
+      }}>
+        {/* Settings Icon */}
         {settingsIcon && (
-          <div className="flex items-center justify-center">
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
             {settingsIcon}
           </div>
         )}
 
+        {/* Badge */}
         {badge && (
-          <span className="inline-block px-4 py-2 bg-[var(--accent)] text-white rounded-full text-sm font-semibold whitespace-nowrap">
+          <span style={{
+            display: "inline-block",
+            padding: "0.5rem 1rem",
+            backgroundColor: "var(--accent)",
+            color: "#fff",
+            borderRadius: "20px",
+            fontSize: "0.85rem",
+            fontWeight: "600",
+            whiteSpace: "nowrap",
+          }}>
             {badge}
           </span>
         )}
@@ -43,4 +87,3 @@ export const DashboardHeader = ({ title, subtitle, email, badge, settingsIcon }:
     </div>
   );
 };
-

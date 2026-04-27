@@ -1,9 +1,6 @@
 "use client";
 
 import { useAuth } from "@/lib/auth-context";
-import { SectionHeader } from "@/app/components/ui/section-header";
-import { Card } from "@/app/components/ui/card";
-import { EmptyState } from "@/app/components/ui/empty-state";
 
 export function UserManager() {
   const { allUsers, deleteUser } = useAuth();
@@ -11,41 +8,41 @@ export function UserManager() {
   const regularUsers = allUsers.filter((u) => u.id !== "admin-001");
 
   return (
-    <Card>
-      <SectionHeader
-        title="User Management"
-        subtitle={`${regularUsers.length} registered users`}
-      />
+    <section className="admin-section">
+      <div className="section-header">
+        <h2>User Management ({regularUsers.length})</h2>
+      </div>
 
       {regularUsers.length === 0 ? (
-        <EmptyState icon="👥" title="No users registered yet." />
+        <p className="empty-state">No users registered yet.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+        <div className="users-table" style={{ overflowX: "auto" }}>
+          <table>
             <thead>
-              <tr className="bg-[#faf8f3]">
-                <th className="text-left p-3 font-semibold text-sm uppercase tracking-wider border-b border-[var(--line)]">Name</th>
-                <th className="text-left p-3 font-semibold text-sm uppercase tracking-wider border-b border-[var(--line)]">Email</th>
-                <th className="text-left p-3 font-semibold text-sm uppercase tracking-wider border-b border-[var(--line)]">Joined</th>
-                <th className="text-left p-3 font-semibold text-sm uppercase tracking-wider border-b border-[var(--line)]">Actions</th>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Joined</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {regularUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-[#faf8f3] transition-colors">
-                  <td className="p-3 border-b border-[var(--line)]">
+                <tr key={user.id}>
+                  <td>
                     <strong>{user.name}</strong>
                   </td>
-                  <td className="p-3 border-b border-[var(--line)]">{user.email}</td>
-                  <td className="p-3 border-b border-[var(--line)]">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}</td>
-                  <td className="p-3 border-b border-[var(--line)]">
+                  <td>{user.email}</td>
+                  <td>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}</td>
+                  <td>
                     <button
                       onClick={() => {
                         if (confirm(`Delete user "${user.name}"?`)) {
                           deleteUser(user.id);
                         }
                       }}
-                      className="px-3 py-1.5 bg-[#ff6b6b] text-white rounded-md text-xs font-semibold cursor-pointer hover:bg-[#ff5252] transition-colors"
+                      className="btn btn-delete"
+                      style={{ fontSize: "0.8rem" }}
                     >
                       Delete
                     </button>
@@ -56,7 +53,41 @@ export function UserManager() {
           </table>
         </div>
       )}
-    </Card>
+
+      <style>{`
+        .users-table {
+          margin-top: 1rem;
+        }
+
+        .users-table table {
+          width: 100%;
+          border-collapse: collapse;
+          background: var(--surface);
+        }
+
+        .users-table th,
+        .users-table td {
+          border-bottom: 1px solid var(--line);
+          padding: 0.75rem;
+          text-align: left;
+        }
+
+        .users-table th {
+          background: #faf8f3;
+          font-weight: 600;
+          font-size: 0.9rem;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .users-table tr:hover {
+          background: #faf8f3;
+        }
+
+        .users-table button {
+          cursor: pointer;
+        }
+      `}</style>
+    </section>
   );
 }
-

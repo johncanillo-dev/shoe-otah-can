@@ -2,10 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useOrder, type DatabaseOrder } from "@/lib/order-context";
-import { SectionHeader } from "@/app/components/ui/section-header";
-import { Badge } from "@/app/components/ui/badge";
-import { Card } from "@/app/components/ui/card";
-import { EmptyState } from "@/app/components/ui/empty-state";
 
 export function OrderManager() {
   const { databaseOrders, updateDatabaseOrderStatus } = useOrder();
@@ -14,6 +10,7 @@ export function OrderManager() {
   const [isLoading, setIsLoading] = useState(true);
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [allOrders, setAllOrders] = useState<DatabaseOrder[]>([]);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   useEffect(() => {
     setIsLoading(false);
@@ -31,25 +28,20 @@ export function OrderManager() {
     ? allOrders 
     : allOrders.filter(order => order.status === statusFilter);
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "pending": return "warning";
-      case "processing": return "info";
-      case "shipped": return "primary";
-      case "delivered": return "success";
-      case "cancelled": return "danger";
-      default: return "default";
-    }
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "pending": return "#ff9800";
-      case "processing": return "#2196f3";
-      case "shipped": return "#9c27b0";
-      case "delivered": return "#4caf50";
-      case "cancelled": return "#f44336";
-      default: return "#757575";
+      case "pending":
+        return "#ff9800"; // Orange
+      case "processing":
+        return "#2196f3"; // Blue
+      case "shipped":
+        return "#9c27b0"; // Purple
+      case "delivered":
+        return "#4caf50"; // Green
+      case "cancelled":
+        return "#f44336"; // Red
+      default:
+        return "#757575"; // Gray
     }
   };
 
@@ -57,20 +49,10 @@ export function OrderManager() {
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "pending": return "⏳";
-      case "processing": return "⚙️";
-      case "shipped": return "📦";
-      case "delivered": return "🚚";
-      case "cancelled": return "❌";
-      default: return "📋";
-    }
-  };
-
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
     const result = await updateDatabaseOrderStatus(orderId, newStatus);
     if (result.success) {
+      // local state updates via real-time subscription
       if (selectedOrder?.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus as DatabaseOrder["status"] });
       }
@@ -92,8 +74,15 @@ export function OrderManager() {
     if (order) {
       const deliveryDate = new Date().toLocaleDateString();
       handleStatusUpdate(orderId, "delivered");
-      const deliveryInfo = { date: deliveryDate, time: new Date().toLocaleTimeString(), notes: deliveryNotes };
+      
+      // Save delivery info
+      const deliveryInfo = {
+        date: deliveryDate,
+        time: new Date().toLocaleTimeString(),
+        notes: deliveryNotes,
+      };
       localStorage.setItem(`delivery-${orderId}`, JSON.stringify(deliveryInfo));
+      
       if (selectedOrder?.id === orderId) {
         alert(`Order ${orderId} marked as delivered on ${deliveryDate}`);
       }
@@ -106,68 +95,89 @@ export function OrderManager() {
   };
 
   if (isLoading) {
-    return <div className="text-center py-8 text-[#666]">Loading orders...</div>;
+    return <div style={{ padding: "2rem", textAlign: "center" }}>Loading orders...</div>;
   }
-
-  const filters = ["all", "pending", "processing", "shipped", "delivered", "cancelled"] as const;
 
   return (
     <>
-      <Card>
-        <SectionHeader
-          title="📦 Customer Orders & Checkouts"
-          subtitle={`${allOrders.length} total orders`}
-        />
-
-        {/* Filter Buttons */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          {filters.map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setStatusFilter(filter)}
-              className={`px-4 py-2 rounded-full text-sm font-medium cursor-pointer transition-all duration-200 border ${
-                statusFilter === filter
-                  ? "bg-[var(--accent)] text-white border-[var(--accent)]"
-                  : "bg-transparent border-[var(--line)] hover:border-[var(--ink)]"
-              }`}
-            >
-              {filter === "all" ? "All Orders" : getStatusLabel(filter)}
-              {filter !== "all" && statusFilter === "all" && ` (${allOrders.filter(o => o.status === filter).length})`}
-            </button>
-          ))}
+      <div className="orders-section">
+        <div className="section-header">
+          <h2>📦 Customer Orders & Checkouts</h2>
+          <div className="filter-buttons">
+            {(["all", "pending", "processing", "shipped", "delivered", "cancelled"] as const).map((filter) => (
+              <button
+                key={filter}
+                className={`filter-btn ${statusFilter === filter ? "active" : ""}`}
+                onClick={() => setStatusFilter(filter)}
+                style={{
+                  padding: "0.5rem 1rem",
+                  borderRadius: "6px",
+                  border: "1px solid var(--line)",
+                  background: statusFilter === filter ? "var(--accent)" : "transparent",
+                  color: statusFilter === filter ? "white" : "inherit",
+                  cursor: "pointer",
+                  fontSize: "0.9rem",
+                  marginRight: "0.5rem",
+                }}
+              >
+                {filter === "all" ? "All Orders" : getStatusLabel(filter)} 
+                {filter !== "all" && statusFilter === "all" && ` (${allOrders.filter(o => o.status === filter).length})`}
+              </button>
+            ))}
+          </div>
         </div>
 
         {filteredOrders.length === 0 ? (
-          <EmptyState icon="📭" title="No orders found" />
+          <div style={{ padding: "2rem", textAlign: "center", color: "#5e584d" }}>
+            <p>No orders found</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto border border-[var(--line)] rounded-xl">
-            <table className="w-full border-collapse text-sm">
-              <thead className="bg-[#f9f6f0]">
+          <div className="orders-table-wrapper">
+            <table className="orders-table">
+              <thead>
                 <tr>
-                  <th className="p-4 text-left font-semibold border-b-2 border-[var(--line)]">Order ID</th>
-                  <th className="p-4 text-left font-semibold border-b-2 border-[var(--line)]">Product</th>
-                  <th className="p-4 text-left font-semibold border-b-2 border-[var(--line)]">Qty</th>
-                  <th className="p-4 text-left font-semibold border-b-2 border-[var(--line)]">Amount</th>
-                  <th className="p-4 text-left font-semibold border-b-2 border-[var(--line)]">Status</th>
-                  <th className="p-4 text-left font-semibold border-b-2 border-[var(--line)]">Action</th>
+                  <th>Order ID</th>
+                  <th>Product</th>
+                  <th>Qty</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-[#fbf7ee] transition-colors">
-                    <td className="p-4 border-b border-[var(--line)] font-semibold">{order.id.slice(0, 8)}</td>
-                    <td className="p-4 border-b border-[var(--line)]">{order.productName}</td>
-                    <td className="p-4 border-b border-[var(--line)]">{order.quantity}</td>
-                    <td className="p-4 border-b border-[var(--line)] font-semibold">₱{order.totalAmount.toFixed(2)}</td>
-                    <td className="p-4 border-b border-[var(--line)]">
-                      <Badge variant={getStatusVariant(order.status)}>
+                  <tr key={order.id}>
+                    <td style={{ fontWeight: "600" }}>{order.id.slice(0, 8)}</td>
+                    <td>{order.productName}</td>
+                    <td>{order.quantity}</td>
+                    <td style={{ fontWeight: "600" }}>₱{order.totalAmount.toFixed(2)}</td>
+                    <td>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "0.4rem 0.8rem",
+                          borderRadius: "999px",
+                          backgroundColor: getStatusColor(order.status),
+                          color: "white",
+                          fontSize: "0.85rem",
+                          fontWeight: "600",
+                        }}
+                      >
                         {getStatusLabel(order.status)}
-                      </Badge>
+                      </span>
                     </td>
-                    <td className="p-4 border-b border-[var(--line)]">
+                    <td>
                       <button
                         onClick={() => setSelectedOrder(order)}
-                        className="px-3 py-1.5 bg-[var(--ink)] text-white rounded-md text-sm cursor-pointer hover:opacity-90 transition-opacity"
+                        style={{
+                          padding: "0.4rem 0.8rem",
+                          backgroundColor: "var(--ink)",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                          fontSize: "0.85rem",
+                        }}
                       >
                         Manage
                       </button>
@@ -178,80 +188,107 @@ export function OrderManager() {
             </table>
           </div>
         )}
-      </Card>
+      </div>
 
       {/* Order Details Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSelectedOrder(null)} />
-          <Card className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="order-details-modal">
+          <div className="modal-backdrop" onClick={() => setSelectedOrder(null)} />
+          <div className="modal-content">
             <button 
+              className="modal-close"
               onClick={() => setSelectedOrder(null)}
-              className="absolute top-4 right-4 bg-none border-none text-2xl cursor-pointer hover:opacity-70"
+              style={{
+                position: "absolute",
+                top: "1rem",
+                right: "1rem",
+                background: "none",
+                border: "none",
+                fontSize: "1.5rem",
+                cursor: "pointer",
+              }}
             >
               ×
             </button>
 
-            <h2 className="text-xl font-bold mb-6">📋 Order Management</h2>
+            <h2>📋 Order Management</h2>
 
             {/* Order Header */}
-            <div className="space-y-3 mb-6">
-              <div className="flex justify-between items-center py-2 border-b border-[#ddd]">
+            <div className="detail-section">
+              <div className="detail-row">
                 <strong>Order ID:</strong>
                 <span>{selectedOrder.id}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-[#ddd]">
+              <div className="detail-row">
                 <strong>Date:</strong>
                 <span>{new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
               </div>
-              <div className="flex justify-between items-center py-2 border-b border-[#ddd]">
+              <div className="detail-row">
                 <strong>Current Status:</strong>
-                <Badge variant={getStatusVariant(selectedOrder.status)}>
+                <span
+                  style={{
+                    padding: "0.4rem 0.8rem",
+                    borderRadius: "999px",
+                    backgroundColor: getStatusColor(selectedOrder.status),
+                    color: "white",
+                    fontSize: "0.9rem",
+                    fontWeight: "600",
+                  }}
+                >
                   {getStatusLabel(selectedOrder.status)}
-                </Badge>
+                </span>
               </div>
             </div>
 
             {/* Customer Information */}
-            <div className="mb-6">
-              <h3 className="text-base font-semibold mb-3">👤 Customer Information</h3>
-              <div className="space-y-2 text-sm">
-                <div><strong>User ID:</strong> {selectedOrder.userId}</div>
+            <div className="detail-section">
+              <h3>👤 Customer Information</h3>
+              <div className="detail-row">
+                <strong>Order ID:</strong>
+                <span>{selectedOrder.id}</span>
+              </div>
+              <div className="detail-row">
+                <strong>User ID:</strong>
+                <span>{selectedOrder.userId}</span>
               </div>
             </div>
 
             {/* Delivery Address */}
-            <div className="mb-6">
-              <h3 className="text-base font-semibold mb-3">📍 Delivery Address</h3>
-              <div className="p-4 bg-[#f9f6f0] rounded-lg">
-                <p className="m-0 text-[#5e584d]">{selectedOrder.deliveryAddress}</p>
+            <div className="detail-section">
+              <h3>📍 Delivery Address</h3>
+              <div style={{ padding: "1rem", backgroundColor: "#f9f6f0", borderRadius: "8px" }}>
+                <p style={{ margin: "0.3rem 0", color: "#5e584d" }}>
+                  {selectedOrder.deliveryAddress}
+                </p>
               </div>
             </div>
 
             {/* Products */}
-            <div className="mb-6">
-              <h3 className="text-base font-semibold mb-3">🛍️ Product Ordered</h3>
-              <div className="p-4 bg-[#f9f6f0] rounded-lg">
-                <div className="font-semibold">{selectedOrder.productName}</div>
-                <div className="flex justify-between mt-2">
+            <div className="detail-section">
+              <h3>🛍️ Product Ordered</h3>
+              <div style={{ padding: "1rem", backgroundColor: "#f9f6f0", borderRadius: "8px" }}>
+                <div style={{ fontWeight: "600" }}>{selectedOrder.productName}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.5rem" }}>
                   <span>Qty: {selectedOrder.quantity}</span>
                   <span>Price: ₱{selectedOrder.price.toFixed(2)}</span>
                 </div>
-                <div className="text-right mt-2 font-semibold">
+                <div style={{ textAlign: "right", marginTop: "0.5rem", fontWeight: "600" }}>
                   Total: ₱{(selectedOrder.quantity * selectedOrder.price).toFixed(2)}
                 </div>
               </div>
             </div>
 
-            {/* Notes */}
-            <div className="mb-6">
-              <h3 className="text-base font-semibold mb-3">💳 Notes</h3>
-              <p className="text-[#5e584d] m-0">{selectedOrder.deliveryNotes || "No additional notes"}</p>
+            {/* Payment Information */}
+            <div className="detail-section">
+              <h3>💳 Notes</h3>
+              <div className="detail-row" style={{ flexDirection: "column", alignItems: "flex-start" }}>
+                <p style={{ margin: "0.3rem 0", color: "#5e584d" }}>{selectedOrder.deliveryNotes || "No additional notes"}</p>
+              </div>
             </div>
 
             {/* Order Summary */}
-            <div className="bg-[#f9f6f0] p-4 rounded-lg mb-6">
-              <div className="flex justify-between items-center text-lg font-semibold">
+            <div className="detail-section" style={{ backgroundColor: "#f9f6f0", padding: "1rem", borderRadius: "8px" }}>
+              <div className="detail-row" style={{ fontSize: "1.1rem", fontWeight: "600" }}>
                 <strong>Total Amount:</strong>
                 <span>₱{selectedOrder.totalAmount.toFixed(2)}</span>
               </div>
@@ -259,54 +296,87 @@ export function OrderManager() {
 
             {/* Delivery Tracking */}
             {selectedOrder.status === "delivered" && getDeliveryInfo(selectedOrder.id) && (
-              <div className="bg-[#e8f5e9] p-4 rounded-lg mb-6">
-                <h3 className="font-semibold mb-3">✅ Delivered</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <strong>Delivered Date:</strong>
-                    <span>{getDeliveryInfo(selectedOrder.id)?.date}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <strong>Delivered Time:</strong>
-                    <span>{getDeliveryInfo(selectedOrder.id)?.time}</span>
-                  </div>
+              <div className="detail-section" style={{ backgroundColor: "#e8f5e9", padding: "1rem", borderRadius: "8px" }}>
+                <h3 style={{ margin: "0 0 1rem" }}>✅ Delivered</h3>
+                <div className="detail-row">
+                  <strong>Delivered Date:</strong>
+                  <span>{getDeliveryInfo(selectedOrder.id)?.date}</span>
+                </div>
+                <div className="detail-row">
+                  <strong>Delivered Time:</strong>
+                  <span>{getDeliveryInfo(selectedOrder.id)?.time}</span>
                 </div>
               </div>
             )}
 
             {/* Delivery Notes */}
-            <div className="mb-6">
-              <h3 className="text-base font-semibold mb-3">📝 Delivery Notes</h3>
+            <div className="detail-section">
+              <h3>📝 Delivery Notes</h3>
               <textarea
                 value={deliveryNotes}
                 onChange={(e) => setDeliveryNotes(e.target.value)}
                 placeholder="Add delivery instructions, recipient name, special handling notes, etc."
-                className="w-full min-h-[100px] p-3 border border-[var(--line)] rounded-lg font-inherit text-sm resize-y focus:outline-none focus:border-[var(--accent)]"
+                style={{
+                  width: "100%",
+                  minHeight: "100px",
+                  padding: "0.8rem",
+                  border: "1px solid var(--line)",
+                  borderRadius: "8px",
+                  fontFamily: "inherit",
+                  fontSize: "0.95rem",
+                  resize: "vertical",
+                }}
               />
               <button
                 onClick={handleSaveDeliveryNotes}
-                className="mt-3 px-4 py-2 bg-[#2196f3] text-white rounded-md cursor-pointer font-semibold hover:opacity-90 transition-opacity"
+                style={{
+                  marginTop: "0.8rem",
+                  padding: "0.6rem 1rem",
+                  backgroundColor: "#2196f3",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontWeight: "600",
+                }}
               >
                 💾 Save Notes
               </button>
             </div>
 
             {/* Status Update Buttons */}
-            <div className="mb-6">
-              <h3 className="text-base font-semibold mb-3">🔄 Update Order Status</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="detail-section">
+              <h3>🔄 Update Order Status</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.8rem" }}>
                 {(["pending", "processing", "shipped", "delivered", "cancelled"] as const).map((status) => (
                   <button
                     key={status}
                     onClick={() => handleStatusUpdate(selectedOrder.id, status)}
-                    className={`py-2.5 px-4 rounded-lg border-none cursor-pointer font-semibold transition-all duration-200 ${
-                      selectedOrder.status === status
-                        ? "text-white"
-                        : "bg-[var(--line)] text-[var(--ink)] hover:opacity-80"
-                    }`}
-                    style={selectedOrder.status === status ? { backgroundColor: getStatusColor(status) } : {}}
+                    style={{
+                      padding: "0.8rem 1rem",
+                      backgroundColor: selectedOrder.status === status ? getStatusColor(status) : "var(--line)",
+                      color: selectedOrder.status === status ? "white" : "var(--ink)",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontWeight: "600",
+                      transition: "all 0.2s",
+                      fontSize: "0.95rem",
+                    }}
+                    onMouseOver={(e) => {
+                      if (selectedOrder.status !== status) {
+                        e.currentTarget.style.opacity = "0.8";
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.opacity = "1";
+                    }}
                   >
-                    {getStatusIcon(status)} {getStatusLabel(status)}
+                    {status === "pending" ? "⏳" : 
+                     status === "processing" ? "⚙️" :
+                     status === "shipped" ? "📦" :
+                     status === "cancelled" ? "❌" :
+                     "🚚"} {getStatusLabel(status)}
                   </button>
                 ))}
               </div>
@@ -314,17 +384,160 @@ export function OrderManager() {
 
             {/* Mark as Delivered */}
             {selectedOrder.status !== "delivered" && (
-              <button
-                onClick={() => handleMarkDelivered(selectedOrder.id)}
-                className="w-full py-3 bg-[#4caf50] text-white rounded-lg cursor-pointer font-semibold text-base hover:opacity-90 transition-opacity"
-              >
-                🎉 Mark as Delivered
-              </button>
+              <div className="detail-section">
+                <button
+                  onClick={() => handleMarkDelivered(selectedOrder.id)}
+                  style={{
+                    width: "100%",
+                    padding: "1rem",
+                    backgroundColor: "#4caf50",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    fontWeight: "600",
+                    fontSize: "1rem",
+                  }}
+                >
+                  🎉 Mark as Delivered
+                </button>
+              </div>
             )}
-          </Card>
+          </div>
         </div>
       )}
+
+      <style jsx>{`
+        .orders-table-wrapper {
+          overflow-x: auto;
+          border: 1px solid var(--line);
+          border-radius: 12px;
+        }
+
+        .orders-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 0.95rem;
+        }
+
+        .orders-table thead {
+          background: #f9f6f0;
+          font-weight: 600;
+        }
+
+        .orders-table th {
+          padding: 1rem;
+          text-align: left;
+          border-bottom: 2px solid var(--line);
+        }
+
+        .orders-table td {
+          padding: 1rem;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .orders-table tbody tr:hover {
+          background: #fbf7ee;
+        }
+
+        .section-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1.5rem;
+          flex-wrap: wrap;
+          gap: 1rem;
+        }
+
+        .section-header h2 {
+          margin: 0;
+          font-family: var(--font-display), sans-serif;
+          font-size: 1.5rem;
+        }
+
+        .filter-buttons {
+          display: flex;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+        }
+
+        .order-details-modal {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .modal-backdrop {
+          position: absolute;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+          position: relative;
+          background: white;
+          border-radius: 12px;
+          padding: 2rem;
+          max-width: 700px;
+          max-height: 90vh;
+          overflow-y: auto;
+          width: 95vw;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-content h2 {
+          margin: 0 0 1.5rem;
+          font-family: var(--font-display), sans-serif;
+        }
+
+        .modal-content h3 {
+          margin: 1.5rem 0 1rem;
+          font-family: var(--font-display), sans-serif;
+          font-size: 1.1rem;
+        }
+
+        .detail-section {
+          margin-bottom: 1.5rem;
+        }
+
+        .detail-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.6rem 0;
+          border-bottom: 1px solid #ddd;
+        }
+
+        .detail-row strong {
+          color: var(--ink);
+        }
+
+        @media (max-width: 768px) {
+          .section-header {
+            flex-direction: column;
+            align-items: flex-start;
+          }
+
+          .orders-table {
+            font-size: 0.85rem;
+          }
+
+          .orders-table th,
+          .orders-table td {
+            padding: 0.6rem;
+          }
+
+          .modal-content {
+            padding: 1.5rem;
+          }
+        }
+      `}</style>
     </>
   );
 }
-

@@ -5,9 +5,6 @@ import { useOrder } from "@/lib/order-context";
 import { useAuth } from "@/lib/auth-context";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import Map from "@/app/components/map";
-import { StatsCard } from "@/app/components/ui/stats-card";
-import { SectionHeader } from "@/app/components/ui/section-header";
-import { Card } from "@/app/components/ui/card";
 
 export type AdminDashboardStats = {
   totalUsers: number;
@@ -34,6 +31,7 @@ export function AdminDashboard({ shopLocation = { latitude: 8.6324, longitude: 1
   const [lastUpdated, setLastUpdated] = useState<string>("");
   const supabase = createSupabaseBrowserClient();
 
+  // Fetch stats function
   const fetchStats = async () => {
     setIsLoading(true);
     try {
@@ -49,26 +47,65 @@ export function AdminDashboard({ shopLocation = { latitude: 8.6324, longitude: 1
     }
   };
 
+  // Setup real-time subscription
   useEffect(() => {
     if (!isAdmin) return;
 
+    // Fetch initial stats
     fetchStats();
 
+    // Subscribe to real-time changes on orders table
     const ordersChannel = supabase
       .channel('admin-orders-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchStats())
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          console.log("📡 Real-time order update detected:", payload);
+          fetchStats();
+        }
+      )
       .subscribe();
 
+    // Subscribe to real-time changes on users table
     const usersChannel = supabase
       .channel('admin-users-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => fetchStats())
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'users'
+        },
+        (payload) => {
+          console.log("📡 Real-time user update detected:", payload);
+          fetchStats();
+        }
+      )
       .subscribe();
 
+    // Subscribe to real-time changes on products table
     const productsChannel = supabase
       .channel('admin-products-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'shoe-otah' }, () => fetchStats())
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'shoe-otah'
+        },
+        (payload) => {
+          console.log("📡 Real-time product update detected:", payload);
+          fetchStats();
+        }
+      )
       .subscribe();
 
+    // Fallback: Also poll every 30 seconds for extra reliability
     const interval = setInterval(fetchStats, 30000);
 
     return () => {
@@ -81,18 +118,18 @@ export function AdminDashboard({ shopLocation = { latitude: 8.6324, longitude: 1
 
   if (!isAdmin) {
     return (
-      <Card variant="outline" padding="lg" className="bg-[#fff5f0] border-[#ffccbb]">
-        <p className="text-[#d32f2f] m-0">⚠️ Admin access required to view dashboard</p>
-      </Card>
+      <div style={{ padding: "2rem", backgroundColor: "#fff5f0", borderRadius: "8px", border: "1px solid #ffccbb" }}>
+        <p style={{ color: "#d32f2f" }}>⚠️ Admin access required to view dashboard</p>
+      </div>
     );
   }
 
   if (isLoading && !stats) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="text-4xl mb-4">📊</div>
-          <p className="text-[#5e584d] m-0">Loading dashboard statistics...</p>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "400px" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>📊</div>
+          <p style={{ color: "#5e584d" }}>Loading dashboard statistics...</p>
         </div>
       </div>
     );
@@ -107,57 +144,88 @@ export function AdminDashboard({ shopLocation = { latitude: 8.6324, longitude: 1
     }).format(value);
   };
 
-  const statItems = [
-    { label: "Total Users", value: stats?.totalUsers || 0, icon: "👥", color: "default" as const },
-    { label: "Total Orders", value: stats?.totalOrders || 0, icon: "📦", color: "default" as const },
-    { label: "Pending", value: stats?.pendingOrders || 0, icon: "⏳", color: "orange" as const },
-    { label: "Processing", value: stats?.processingOrders || 0, icon: "⚙️", color: "blue" as const },
-    { label: "Shipped", value: stats?.shippedOrders || 0, icon: "🚚", color: "purple" as const },
-    { label: "Delivered", value: stats?.deliveredOrders || 0, icon: "✅", color: "green" as const },
-    { label: "Cancelled", value: stats?.cancelledOrders || 0, icon: "❌", color: "red" as const },
-    { label: "Total Products", value: stats?.totalProducts || 0, icon: "👟", color: "default" as const },
-    { label: "Total Revenue", value: formatCurrency(stats?.totalRevenue || 0), icon: "💰", color: "default" as const },
-    { label: "Avg Order Value", value: formatCurrency(stats?.averageOrderValue || 0), icon: "📈", color: "default" as const },
-  ];
-
   return (
-    <div className="p-6 md:p-8 min-h-screen bg-[#f5f1ed]">
+    <div style={{ padding: "2rem", minHeight: "100vh", backgroundColor: "#f5f1ed" }}>
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-[#2c2420] mb-2">📊 Admin Dashboard</h1>
-        <p className="text-sm text-[#5e584d] m-0">
-          Last updated: {lastUpdated || "Loading..."}
-        </p>
+      <div style={{ marginBottom: "2rem" }}>
+        <h1 style={{ fontSize: "2.5rem", fontWeight: "bold", color: "#2c2420", marginBottom: "0.5rem" }}>📊 Admin Dashboard</h1>
+        <p style={{ color: "#5e584d" }}>Last updated: {lastUpdated || "Loading..."}</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
-        {statItems.map((stat) => (
-          <StatsCard
-            key={stat.label}
-            label={stat.label}
-            value={stat.value}
-            icon={stat.icon}
-            color={stat.color}
-          />
-        ))}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "1.5rem", marginBottom: "2rem" }}>
+        {/* Total Users */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>Total Users</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2c2420" }}>{stats?.totalUsers || 0}</p>
+        </div>
+
+        {/* Total Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>Total Orders</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2c2420" }}>{stats?.totalOrders || 0}</p>
+        </div>
+
+        {/* Pending Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>⏳ Pending</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#ff9800" }}>{stats?.pendingOrders || 0}</p>
+        </div>
+
+        {/* Processing Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>⚙️ Processing</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2196f3" }}>{stats?.processingOrders || 0}</p>
+        </div>
+
+        {/* Shipped Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>📦 Shipped</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#673ab7" }}>{stats?.shippedOrders || 0}</p>
+        </div>
+
+        {/* Delivered Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>✅ Delivered</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#4caf50" }}>{stats?.deliveredOrders || 0}</p>
+        </div>
+
+        {/* Cancelled Orders */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>❌ Cancelled</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#f44336" }}>{stats?.cancelledOrders || 0}</p>
+        </div>
+
+        {/* Total Products */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>👟 Total Products</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2c2420" }}>{stats?.totalProducts || 0}</p>
+        </div>
+
+        {/* Total Revenue */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>💰 Total Revenue</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2c2420" }}>{formatCurrency(stats?.totalRevenue || 0)}</p>
+        </div>
+
+        {/* Average Order Value */}
+        <div style={{ backgroundColor: "white", padding: "1.5rem", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}>
+          <p style={{ color: "#5e584d", fontSize: "0.875rem", marginBottom: "0.5rem" }}>📈 Avg Order Value</p>
+          <p style={{ fontSize: "2rem", fontWeight: "bold", color: "#2c2420" }}>{formatCurrency(stats?.averageOrderValue || 0)}</p>
+        </div>
       </div>
 
       {/* Store Location Map */}
-      <Card>
-        <SectionHeader
-          title="📍 Store Location"
-          subtitle={`${shopLocation.name} — Lat: ${shopLocation.latitude}, Lng: ${shopLocation.longitude}`}
-        />
-        <div className="rounded-lg overflow-hidden h-[400px] border border-[var(--line)]">
+      <div style={{ marginTop: "2rem" }}>
+        <h2 style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#2c2420", marginBottom: "1rem" }}>📍 Store Location</h2>
+        <div style={{ backgroundColor: "white", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", overflow: "hidden", height: "400px" }}>
           <Map
-            position={[shopLocation.latitude, shopLocation.longitude]}
-            title={shopLocation.name}
-            zoom={shopLocation.zoom}
-          />
+  position={[shopLocation.latitude, shopLocation.longitude]}
+  title={shopLocation.name}
+  zoom={shopLocation.zoom}
+/>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
-

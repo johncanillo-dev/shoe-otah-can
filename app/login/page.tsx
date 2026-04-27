@@ -317,7 +317,7 @@ export default function LoginPage() {
             </div>
             <h1 className="auth-brand-title">Your Trusted Online Marketplace "by John Canillo"</h1>
             <p className="auth-brand-subtitle">
-              Discover premium products from shoe-otah. Join thousands of happy customers shopping with confidence.
+              Discover premium shoes from shoe-otah. Join thousands of happy customers shopping with confidence.
             </p>
             <div className="auth-features">
               <div className="auth-feature-item">
