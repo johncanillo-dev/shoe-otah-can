@@ -1,9 +1,18 @@
-import { createServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createSupabaseServerClient();
+    
+    // Check if Supabase is configured
+    if (!supabase) {
+      return NextResponse.json(
+        { error: "Supabase not configured" },
+        { status: 500 }
+      );
+    }
+    
     const body = await request.json();
 
     const {
@@ -93,7 +102,15 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const supabase = await createServerClient();
+    const supabase = await createSupabaseServerClient();
+    
+    // Check if Supabase is configured
+    if (!supabase) {
+      return NextResponse.json(
+        { error: "Supabase not configured" },
+        { status: 500 }
+      );
+    }
 
     const { data, error } = await supabase
       .from("shop_branding")
