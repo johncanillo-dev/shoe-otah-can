@@ -1,18 +1,34 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+
+// Create a server-side Supabase client with service role key for full admin access
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error("Missing Supabase credentials:", {
+      hasUrl: !!supabaseUrl,
+      hasServiceKey: !!supabaseServiceKey,
+    });
+    return null;
+  }
+
+  return createClient(supabaseUrl, supabaseServiceKey);
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient();
-    
-    // Check if Supabase is configured
+    const supabase = getSupabaseAdmin();
+
     if (!supabase) {
+      console.error("Failed to initialize Supabase admin client");
       return NextResponse.json(
-        { error: "Supabase not configured" },
+        { error: "Supabase not configured on server" },
         { status: 500 }
       );
     }
-    
+
     const body = await request.json();
 
     const {
@@ -102,12 +118,12 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const supabase = await createSupabaseServerClient();
-    
-    // Check if Supabase is configured
+    const supabase = getSupabaseAdmin();
+
     if (!supabase) {
+      console.error("Failed to initialize Supabase admin client");
       return NextResponse.json(
-        { error: "Supabase not configured" },
+        { error: "Supabase not configured on server" },
         { status: 500 }
       );
     }
