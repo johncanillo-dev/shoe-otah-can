@@ -1,6 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
+// Valid columns in shop_branding table
+const VALID_COLUMNS = [
+  "shop_name",
+  "location_address",
+  "banner_url",
+  "logo_url",
+  "updated_at",
+];
+
 // Create a server-side Supabase client with service role key for full admin access
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,6 +26,22 @@ function getSupabaseAdmin() {
   return createClient(supabaseUrl, supabaseServiceKey);
 }
 
+// Whitelist and sanitize update data - only include valid columns
+function sanitizeUpdateData(body: any): Record<string, any> {
+  const updateData: Record<string, any> = {};
+
+  for (const key of VALID_COLUMNS) {
+    if (key in body) {
+      updateData[key] = body[key];
+    }
+  }
+
+  // Always set updated_at to current timestamp
+  updateData.updated_at = new Date().toISOString();
+
+  return updateData;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
@@ -31,86 +56,72 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    const {
-      location_latitude,
-      location_longitude,
-      location_address,
-      location_zoom,
-      location_image_url,
-      shop_name,
-    } = body;
-
-    // Validate required fields
-    if (
-      location_latitude === undefined ||
-      location_longitude === undefined ||
-      !location_address
-    ) {
+    // Validate request has id
+    if (!body.id) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "Missing required field: id" },
         { status: 400 }
       );
     }
 
-    // Get existing record or create new
-    const { data: existing, error: selectError } = await supabase
+    // Sanitize data - only include valid columns
+    const updateData = sanitizeUpdateData(body);
+
+    // Perform update
+    const { data, error } = await supabase
       .from("shop_branding")
-      .select("id")
-      .limit(1)
-      .single();
+      .update(updateData)
+      .eq("id", body.id)
+      .select();
 
-    if (selectError && selectError.code !== "PGRST116") {
-      console.error("Select error:", selectError);
+    // Handle Supabase errors
+    if (error) {
+      console.error("Supabase error details:", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+
+      // Return 400 for known Supabase errors
+      if (error.code === "PGRST204" || error.code === "PGRST116") {
+        return NextResponse.json(
+          {
+            error: error.message,
+            code: error.code,
+            details: error.details,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Return 500 for unexpected errors
       return NextResponse.json(
-        { error: "Failed to fetch existing record" },
-        { status: 500 }
-      );
-    }
-
-    const branding_update = {
-      location_latitude,
-      location_longitude,
-      location_address,
-      location_zoom,
-      location_image_url: location_image_url || null,
-      shop_name: shop_name || "Shoe Otah Boutique",
-      updated_at: new Date().toISOString(),
-    };
-
-    let result;
-
-    if (existing?.id) {
-      // Update existing record
-      result = await supabase
-        .from("shop_branding")
-        .update(branding_update)
-        .eq("id", existing.id)
-        .select();
-    } else {
-      // Create new record
-      result = await supabase
-        .from("shop_branding")
-        .insert([branding_update])
-        .select();
-    }
-
-    if (result.error) {
-      console.error("Database error:", result.error);
-      return NextResponse.json(
-        { error: "Failed to update location" },
+        {
+          error: "Database operation failed",
+          code: error.code,
+          message: error.message,
+        },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      data: result.data,
+      data,
       message: "Location updated successfully",
     });
   } catch (error) {
-    console.error("API error:", error);
+    console.error("API error:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     return NextResponse.json(
-      { error: "Internal server error" },
+      {
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 }
     );
   }
@@ -134,10 +145,28 @@ export async function GET() {
       .limit(1)
       .single();
 
-    if (error && error.code !== "PGRST116") {
-      console.error("Fetch error:", error);
+    if (error) {
+      // PGRST116 is "no rows found" - return empty object instead
+      if (error.code === "PGRST116") {
+        return NextResponse.json({
+          success: true,
+          data: {},
+        });
+      }
+
+      console.error("Supabase fetch error:", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+
       return NextResponse.json(
-        { error: "Failed to fetch branding" },
+        {
+          error: "Failed to fetch branding",
+          code: error.code,
+          message: error.message,
+        },
         { status: 500 }
       );
     }
@@ -147,9 +176,16 @@ export async function GET() {
       data: data || {},
     });
   } catch (error) {
-    console.error("API error:", error);
+    console.error("API error:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
     return NextResponse.json(
-      { error: "Internal server error" },
+      {
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 }
     );
   }
