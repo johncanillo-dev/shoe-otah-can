@@ -77,28 +77,26 @@ export default function ShopLocationSearchEditor() {
   useEffect(() => {
     const loadLocation = async () => {
       try {
-        // Try to load from Supabase first
-        const { data, error } = await supabase
-          .from("shop_branding")
-          .select("*")
-          .limit(1)
-          .single();
-
-        if (data) {
-          const location: ShopLocation = {
-            latitude: data.location_latitude || 8.81975,
-            longitude: data.location_longitude || 125.69423,
-            name: data.shop_name || "👟 Shoe Otah Boutique",
-            address: data.location_address || "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
-            zoom: data.location_zoom || 18,
-            image: data.location_image_url || undefined,
-          };
-          setShopLocation(location);
-          setEditingLocation(location);
-          return;
+        // Try to load from API first (server-side)
+        const response = await fetch("/api/admin/shop-branding");
+        if (response.ok) {
+          const result = await response.json();
+          if (result.data && result.data.location_latitude) {
+            const location: ShopLocation = {
+              latitude: result.data.location_latitude || 8.81975,
+              longitude: result.data.location_longitude || 125.69423,
+              name: result.data.shop_name || "👟 Shoe Otah Boutique",
+              address: result.data.location_address || "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
+              zoom: result.data.location_zoom || 18,
+              image: result.data.location_image_url || undefined,
+            };
+            setShopLocation(location);
+            setEditingLocation(location);
+            return;
+          }
         }
       } catch (err) {
-        console.warn("Could not load from Supabase, using localStorage:", err);
+        console.warn("Could not load from API, using localStorage:", err);
       }
 
       // Fallback to localStorage
@@ -115,7 +113,7 @@ export default function ShopLocationSearchEditor() {
     };
 
     loadLocation();
-  }, [supabase]);
+  }, []);
 
   const handleQuickPreset = (presetKey: string) => {
     const preset = presetLocations[presetKey];
@@ -175,46 +173,35 @@ export default function ShopLocationSearchEditor() {
     setSaveMessage(null);
 
     try {
-      // Save to Supabase shop_branding table
-      const { data: existing } = await supabase
-        .from("shop_branding")
-        .select("id")
-        .limit(1)
-        .single();
+      // Call server-side API to save to Supabase (bypasses RLS issues)
+      const response = await fetch("/api/admin/shop-branding", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          location_latitude: editingLocation.latitude,
+          location_longitude: editingLocation.longitude,
+          location_address: editingLocation.address,
+          location_zoom: editingLocation.zoom,
+          location_image_url: editingLocation.image || null,
+          shop_name: editingLocation.name,
+        }),
+      });
 
-      const branding_update = {
-        location_latitude: editingLocation.latitude,
-        location_longitude: editingLocation.longitude,
-        location_address: editingLocation.address,
-        location_zoom: editingLocation.zoom,
-        location_image_url: editingLocation.image || null,
-        shop_name: editingLocation.name,
-        updated_at: new Date().toISOString(),
-      };
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("API error:", errorData);
+        setSaveMessage({ type: "error", text: "Failed to update location. Please try again." });
+        return;
+      }
 
-      if (existing?.id) {
-        // Update existing record
-        const { error } = await supabase
-          .from("shop_branding")
-          .update(branding_update)
-          .eq("id", existing.id);
+      const result = await response.json();
 
-        if (error) {
-          console.error("Update error:", error);
-          setSaveMessage({ type: "error", text: "Failed to update location. Please try again." });
-          return;
-        }
-      } else {
-        // Create new record
-        const { error } = await supabase
-          .from("shop_branding")
-          .insert([branding_update]);
-
-        if (error) {
-          console.error("Insert error:", error);
-          setSaveMessage({ type: "error", text: "Failed to save location. Please try again." });
-          return;
-        }
+      if (!result.success) {
+        console.error("Save error:", result.error);
+        setSaveMessage({ type: "error", text: "Failed to update location. Please try again." });
+        return;
       }
 
       // Also save to localStorage as backup
