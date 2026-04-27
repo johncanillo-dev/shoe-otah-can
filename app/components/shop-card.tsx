@@ -20,6 +20,7 @@ interface ShopCardProps {
   latitude?: number;
   longitude?: number;
   zoom?: number;
+  address?: string;
 }
 
 // This component displays the shop location (admin-configured)
@@ -41,6 +42,7 @@ export default function ShopCard({
   latitude = 8.81975,
   longitude = 125.69423,
   zoom = 18,
+  address,
 }: ShopCardProps) {
   const { branding } = useShopBranding();
   const [isTrackingEnabled, setIsTrackingEnabled] = useState(true); // Default to true (show by default)
@@ -60,14 +62,14 @@ export default function ShopCard({
   // Update shop location when branding changes (real-time from Supabase)
   useEffect(() => {
     setShopLocation({
-      latitude: branding.location_latitude || 8.81975,
-      longitude: branding.location_longitude || 125.69423,
-      name: branding.shop_name || "👟 Shoe Otah Boutique",
-      address: branding.location_address || "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
-      zoom: branding.location_zoom || 18,
+      latitude: latitude,
+      longitude: longitude,
+      name: shopName || branding.shop_name || "👟 Shoe Otah Boutique",
+      address: address || branding.location_address || "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
+      zoom: zoom,
       phone: "0950 703 1066",
     });
-  }, [branding]);
+  }, [branding, shopName, latitude, longitude, zoom, address]);
 
   const handleImageClick = () => {
     setShowMap(true);

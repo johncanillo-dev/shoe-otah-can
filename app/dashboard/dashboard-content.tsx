@@ -569,6 +569,7 @@ export default function DashboardContent() {
           <div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
             <ShopCard 
               shopName={shopLocation.name}
+              address={shopLocation.address}
               latitude={shopLocation.latitude}
               longitude={shopLocation.longitude}
               zoom={shopLocation.zoom}
