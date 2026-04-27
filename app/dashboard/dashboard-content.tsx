@@ -5,6 +5,7 @@ import { useOrder, type DatabaseOrder } from "@/lib/order-context";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useAppSettings } from "@/lib/app-settings-context";
 import { useCart } from "@/lib/cart-context";
+import { useShopBranding } from "@/lib/shop-context";
 import Map from "@/app/components/map";
 import ShopCard from "@/app/components/shop-card";
 import { UserSettings } from "@/app/components/user-settings";
@@ -26,24 +27,34 @@ type Product = {
 const DEFAULT_CATEGORIES = ["Shoes", "Shirts", "Slippers", "Socks", "Necklace", "Beauty Product", "Pants"];
 
 export default function DashboardContent() {
-const { user } = useAuth();
+  const { user } = useAuth();
   const { settings } = useAppSettings();
+  const { branding } = useShopBranding();
   const { items, addItem } = useCart();
   const [deliveryInfoMap, setDeliveryInfoMap] = useState<Record<string, any>>({});
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings">("overview");
   const [shopLocation, setShopLocation] = useState({
-    name: "👟 Shoe Otah Boutique",
-    image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=300&fit=crop",
-    latitude: 8.81975,
-    longitude: 125.69423,
-    zoom: 18,
+    name: branding.shop_name || "👟 Shoe Otah Boutique",
+    latitude: branding.location_latitude || 8.81975,
+    longitude: branding.location_longitude || 125.69423,
+    zoom: branding.location_zoom || 18,
   });
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [addedToCart, setAddedToCart] = useState<string | null>(null);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [supabaseOrders, setSupabaseOrders] = useState<DatabaseOrder[]>([]);
+
+  // Update shop location when branding changes (real-time from Supabase)
+  useEffect(() => {
+    setShopLocation({
+      name: branding.shop_name || "👟 Shoe Otah Boutique",
+      latitude: branding.location_latitude || 8.81975,
+      longitude: branding.location_longitude || 125.69423,
+      zoom: branding.location_zoom || 18,
+    });
+  }, [branding]);
 
   // Load products from Supabase on mount and subscribe to real-time updates
   useEffect(() => {
@@ -66,30 +77,6 @@ const { user } = useAuth();
     );
 
     return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const loadShopLocation = () => {
-      const savedLocation = localStorage.getItem("shop-location");
-      if (savedLocation) {
-        try {
-          const parsed = JSON.parse(savedLocation);
-          setShopLocation({
-            name: parsed.name || "👟 Shoe Otah Boutique",
-            image: parsed.image || "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=300&fit=crop",
-            latitude: parsed.latitude || 8.81975,
-            longitude: parsed.longitude || 125.69423,
-            zoom: parsed.zoom || 18,
-          });
-        } catch (e) {
-          console.error("Failed to load shop location:", e);
-        }
-      }
-    };
-
-    loadShopLocation();
-    window.addEventListener("storage", loadShopLocation);
-    return () => window.removeEventListener("storage", loadShopLocation);
   }, []);
 
   // Fetch and subscribe to real-time Supabase orders for current user
@@ -331,6 +318,100 @@ const { user } = useAuth();
                 ₱{totalSpent.toFixed(2)}
               </p>
             </article>
+          </div>
+
+          {/* Shop Location Card */}
+          <div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
+            <h3 style={{ marginBottom: "1.5rem", fontSize: "1.2rem", fontWeight: "600" }}>📍 Our Shop Location</h3>
+            <div
+              style={{
+                backgroundColor: "white",
+                borderRadius: "8px",
+                border: "1px solid var(--line)",
+                overflow: "hidden",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+              }}
+            >
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0" }}>
+                {/* Left: Shop Image */}
+                <div
+                  style={{
+                    height: "250px",
+                    backgroundColor: "#f5f5f5",
+                    overflow: "hidden",
+                  }}
+                >
+                  {branding.location_image_url ? (
+                    <img
+                      src={branding.location_image_url}
+                      alt={branding.shop_name}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#999",
+                        fontSize: "3rem",
+                      }}
+                    >
+                      📸
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Shop Info */}
+                <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <div>
+                    <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "1.3rem", color: "#2c2c2c" }}>
+                      {shopLocation.name}
+                    </h4>
+                    <p style={{ margin: "0.5rem 0", color: "#666", fontSize: "0.95rem", lineHeight: "1.6" }}>
+                      📮 {shopLocation.address}
+                    </p>
+                    <p style={{ margin: "0.5rem 0", color: "#666", fontSize: "0.95rem" }}>
+                      🎯 Lat: {shopLocation.latitude.toFixed(5)} | Lon: {shopLocation.longitude.toFixed(5)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => window.open(
+                      `https://www.google.com/maps/?q=${shopLocation.latitude},${shopLocation.longitude}`,
+                      "_blank"
+                    )}
+                    style={{
+                      padding: "0.75rem 1rem",
+                      backgroundColor: "var(--accent)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "0.95rem",
+                      fontWeight: "600",
+                      marginTop: "1rem",
+                    }}
+                  >
+                    🗺️ Open in Google Maps
+                  </button>
+                </div>
+              </div>
+
+              {/* Map Preview */}
+              <div style={{ borderTop: "1px solid var(--line)", height: "250px" }}>
+                <Map
+                  position={[shopLocation.latitude, shopLocation.longitude]}
+                  title={shopLocation.name}
+                  zoom={shopLocation.zoom}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Cart Section */}

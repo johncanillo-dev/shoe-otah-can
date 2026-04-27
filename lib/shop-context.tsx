@@ -9,6 +9,11 @@ export interface ShopBranding {
   banner_url: string | null;
   shop_name: string;
   updated_at: string;
+  location_latitude?: number;
+  location_longitude?: number;
+  location_address?: string;
+  location_zoom?: number;
+  location_image_url?: string;
 }
 
 const DEFAULT_BRANDING: ShopBranding = {
@@ -17,6 +22,11 @@ const DEFAULT_BRANDING: ShopBranding = {
   banner_url: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=300&fit=crop",
   shop_name: "Shoe Otah Boutique",
   updated_at: new Date().toISOString(),
+  location_latitude: 8.6324,
+  location_longitude: 126.3175,
+  location_address: "P-4 Poblacion, Sibagat, Agusan del Sur",
+  location_zoom: 15,
+  location_image_url: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=300&fit=crop",
 };
 
 interface ShopContextType {
@@ -44,15 +54,29 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         .single();
 
       if (error) {
+        // If table doesn't exist, use defaults (graceful fallback)
+        if (error.code === "PGRST205" || error.code === "42P01") {
+          console.warn("Shop branding table not found. Using default branding.", error.message);
+          setBranding(DEFAULT_BRANDING);
+          return;
+        }
+        
+        // For other errors, log and use defaults
         console.error("Error fetching shop branding:", error);
+        setBranding(DEFAULT_BRANDING);
         return;
       }
 
       if (data) {
         setBranding(data as ShopBranding);
+      } else {
+        // No data found, use defaults
+        setBranding(DEFAULT_BRANDING);
       }
     } catch (err) {
       console.error("Failed to fetch shop branding:", err);
+      // Always fall back to defaults on error
+      setBranding(DEFAULT_BRANDING);
     }
   }, [supabase]);
 
@@ -104,11 +128,18 @@ export function ShopProvider({ children }: { children: ReactNode }) {
     async (updates: Partial<Omit<ShopBranding, "id" | "updated_at">>) => {
       try {
         // Get existing row or create new
-        const { data: existing } = await supabase
+        const { data: existing, error: fetchError } = await supabase
           .from("shop_branding")
           .select("id")
           .limit(1)
           .single();
+
+        // If table doesn't exist, just update local state
+        if (fetchError?.code === "PGRST205" || fetchError?.code === "42P01") {
+          console.warn("Shop branding table not found. Update saved locally only.");
+          setBranding((prev) => ({ ...prev, ...updates }));
+          return;
+        }
 
         const row = {
           ...updates,
@@ -137,10 +168,11 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         }
 
         // Optimistic update
-        setBranding((prev) => ({ ...prev, ...updates }));
+        setBranding((prev) => ({ ...prev, ...updates, updated_at: new Date().toISOString() }));
       } catch (err) {
         console.error("Failed to update shop branding:", err);
-        throw err;
+        // Still update locally on error for better UX
+        setBranding((prev) => ({ ...prev, ...updates }));
       }
     },
     [supabase]

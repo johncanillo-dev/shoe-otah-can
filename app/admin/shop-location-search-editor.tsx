@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const MapComponent = dynamic(() => import("../components/map-component"), {
   ssr: false,
@@ -48,8 +49,11 @@ export default function ShopLocationSearchEditor() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaved, setIsSaved] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [showMap, setShowMap] = useState(true);
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const supabase = createSupabaseBrowserClient();
 
   // Preset locations including Shoe Otah Boutique
   const presetLocations: Record<string, ShopLocation> = {
@@ -69,19 +73,49 @@ export default function ShopLocationSearchEditor() {
     },
   };
 
-  // Load location from localStorage on mount
+  // Load location from Supabase on mount, fallback to localStorage
   useEffect(() => {
-    const saved = localStorage.getItem("shop-location");
-    if (saved) {
+    const loadLocation = async () => {
       try {
-        const parsed = JSON.parse(saved);
-        setShopLocation(parsed);
-        setEditingLocation(parsed);
-      } catch (e) {
-        console.error("Failed to load shop location:", e);
+        // Try to load from Supabase first
+        const { data, error } = await supabase
+          .from("shop_branding")
+          .select("*")
+          .limit(1)
+          .single();
+
+        if (data) {
+          const location: ShopLocation = {
+            latitude: data.location_latitude || 8.81975,
+            longitude: data.location_longitude || 125.69423,
+            name: data.shop_name || "👟 Shoe Otah Boutique",
+            address: data.location_address || "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
+            zoom: data.location_zoom || 18,
+            image: data.location_image_url || undefined,
+          };
+          setShopLocation(location);
+          setEditingLocation(location);
+          return;
+        }
+      } catch (err) {
+        console.warn("Could not load from Supabase, using localStorage:", err);
       }
-    }
-  }, []);
+
+      // Fallback to localStorage
+      const saved = localStorage.getItem("shop-location");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setShopLocation(parsed);
+          setEditingLocation(parsed);
+        } catch (e) {
+          console.error("Failed to load shop location from localStorage:", e);
+        }
+      }
+    };
+
+    loadLocation();
+  }, [supabase]);
 
   const handleQuickPreset = (presetKey: string) => {
     const preset = presetLocations[presetKey];
@@ -136,10 +170,65 @@ export default function ShopLocationSearchEditor() {
     setIsSaved(false);
   };
 
-  const handleSave = () => {
-    localStorage.setItem("shop-location", JSON.stringify(editingLocation));
-    setShopLocation(editingLocation);
-    setIsSaved(true);
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      // Save to Supabase shop_branding table
+      const { data: existing } = await supabase
+        .from("shop_branding")
+        .select("id")
+        .limit(1)
+        .single();
+
+      const branding_update = {
+        location_latitude: editingLocation.latitude,
+        location_longitude: editingLocation.longitude,
+        location_address: editingLocation.address,
+        location_zoom: editingLocation.zoom,
+        location_image_url: editingLocation.image || null,
+        shop_name: editingLocation.name,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (existing?.id) {
+        // Update existing record
+        const { error } = await supabase
+          .from("shop_branding")
+          .update(branding_update)
+          .eq("id", existing.id);
+
+        if (error) {
+          console.error("Update error:", error);
+          setSaveMessage({ type: "error", text: "Failed to update location. Please try again." });
+          return;
+        }
+      } else {
+        // Create new record
+        const { error } = await supabase
+          .from("shop_branding")
+          .insert([branding_update]);
+
+        if (error) {
+          console.error("Insert error:", error);
+          setSaveMessage({ type: "error", text: "Failed to save location. Please try again." });
+          return;
+        }
+      }
+
+      // Also save to localStorage as backup
+      localStorage.setItem("shop-location", JSON.stringify(editingLocation));
+      setShopLocation(editingLocation);
+      setIsSaved(true);
+      setSaveMessage({ type: "success", text: "✅ Location and image updated successfully! Customers will see the changes in real-time." });
+      setTimeout(() => setSaveMessage(null), 4000);
+    } catch (error) {
+      console.error("Save error:", error);
+      setSaveMessage({ type: "error", text: "Error saving location. Please check your connection." });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleReset = () => {
@@ -553,49 +642,49 @@ export default function ShopLocationSearchEditor() {
           <div style={{ display: "flex", gap: "1rem" }}>
             <button
               onClick={handleSave}
-              disabled={isSaved}
+              disabled={isSaved || isSaving}
               style={{
                 flex: 1,
                 padding: "0.75rem 1.5rem",
-                backgroundColor: isSaved ? "#ccc" : "#4caf50",
+                backgroundColor: isSaved || isSaving ? "#ccc" : "#4caf50",
                 color: "white",
                 border: "none",
                 borderRadius: "6px",
-                cursor: isSaved ? "not-allowed" : "pointer",
+                cursor: isSaved || isSaving ? "not-allowed" : "pointer",
                 fontSize: "0.95rem",
                 fontWeight: "600",
                 transition: "all 0.3s ease",
               }}
               onMouseEnter={(e) => {
-                if (!isSaved) {
+                if (!isSaved && !isSaving) {
                   e.currentTarget.style.backgroundColor = "#45a049";
                 }
               }}
               onMouseLeave={(e) => {
-                if (!isSaved) {
+                if (!isSaved && !isSaving) {
                   e.currentTarget.style.backgroundColor = "#4caf50";
                 }
               }}
             >
-              ✓ Save Location
+              {isSaving ? "⏳ Saving..." : "✓ Save Location"}
             </button>
             <button
               onClick={handleReset}
-              disabled={isSaved}
+              disabled={isSaved || isSaving}
               style={{
                 flex: 1,
                 padding: "0.75rem 1.5rem",
                 backgroundColor: "transparent",
-                color: isSaved ? "#ccc" : "#d32f2f",
-                border: `1px solid ${isSaved ? "#ccc" : "#d32f2f"}`,
+                color: isSaved || isSaving ? "#ccc" : "#d32f2f",
+                border: `1px solid ${isSaved || isSaving ? "#ccc" : "#d32f2f"}`,
                 borderRadius: "6px",
-                cursor: isSaved ? "not-allowed" : "pointer",
+                cursor: isSaved || isSaving ? "not-allowed" : "pointer",
                 fontSize: "0.95rem",
                 fontWeight: "600",
                 transition: "all 0.3s ease",
               }}
               onMouseEnter={(e) => {
-                if (!isSaved) {
+                if (!isSaved && !isSaving) {
                   e.currentTarget.style.backgroundColor = "#ffebee";
                 }
               }}
@@ -606,6 +695,22 @@ export default function ShopLocationSearchEditor() {
               ↺ Reset
             </button>
           </div>
+
+          {saveMessage && (
+            <div
+              style={{
+                marginTop: "1rem",
+                padding: "0.75rem 1rem",
+                backgroundColor: saveMessage.type === "success" ? "#d4edda" : "#f8d7da",
+                border: `1px solid ${saveMessage.type === "success" ? "#4caf50" : "#ff9800"}`,
+                borderRadius: "6px",
+                color: saveMessage.type === "success" ? "#155724" : "#e65100",
+                fontSize: "0.9rem",
+              }}
+            >
+              {saveMessage.text}
+            </div>
+          )}
 
           {!isSaved && (
             <div

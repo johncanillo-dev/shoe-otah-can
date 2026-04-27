@@ -46,44 +46,28 @@ export default function ShopCard({
   const [isTrackingEnabled, setIsTrackingEnabled] = useState(true); // Default to true (show by default)
   const [showMap, setShowMap] = useState(true); // Default to true (show map by default)
   const [shopLocation, setShopLocation] = useState<ShopLocation>({
-    latitude: 8.81975,
-    longitude: 125.69423,
-    name: "👟 Shoe Otah Boutique",
-    address: "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
-    zoom: 18,
+    latitude: branding.location_latitude || 8.81975,
+    longitude: branding.location_longitude || 125.69423,
+    name: branding.shop_name || "👟 Shoe Otah Boutique",
+    address: branding.location_address || "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
+    zoom: branding.location_zoom || 18,
     phone: "0950 703 1066",
   });
 
-  // Use dynamic banner from shop branding if no explicit shopImage prop
-  const displayImage = shopImage || branding.banner_url || "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=300&fit=crop";
+  // Use dynamic banner from shop branding location image or fallback
+  const displayImage = shopImage || branding.location_image_url || branding.banner_url || "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=500&h=300&fit=crop";
 
-  // Load shop location from localStorage on mount
+  // Update shop location when branding changes (real-time from Supabase)
   useEffect(() => {
-    const loadLocation = () => {
-      const saved = localStorage.getItem("shop-location");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setShopLocation({
-            latitude: parsed.latitude || 8.81975,
-            longitude: parsed.longitude || 125.69423,
-            name: parsed.name || "👟 Shoe Otah Boutique",
-            address: parsed.address || "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
-            zoom: parsed.zoom || 18,
-            phone: "0950 703 1066",
-          });
-        } catch (e) {
-          console.error("Failed to load shop location:", e);
-        }
-      }
-    };
-
-    loadLocation();
-    
-    // Listen for storage changes
-    window.addEventListener("storage", loadLocation);
-    return () => window.removeEventListener("storage", loadLocation);
-  }, []);
+    setShopLocation({
+      latitude: branding.location_latitude || 8.81975,
+      longitude: branding.location_longitude || 125.69423,
+      name: branding.shop_name || "👟 Shoe Otah Boutique",
+      address: branding.location_address || "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
+      zoom: branding.location_zoom || 18,
+      phone: "0950 703 1066",
+    });
+  }, [branding]);
 
   const handleImageClick = () => {
     setShowMap(true);
