@@ -2157,6 +2157,11 @@ td {
 }
 
 /* Shop background for login and home pages only */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .shop-bg {
   background-image: url('/shoe-store-bg.jpg');
   background-size: cover;
