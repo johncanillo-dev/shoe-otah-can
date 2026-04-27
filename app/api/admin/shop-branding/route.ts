@@ -31,7 +31,7 @@ function sanitizeUpdateData(body: any): Record<string, any> {
   const updateData: Record<string, any> = {};
 
   for (const key of VALID_COLUMNS) {
-    if (key in body) {
+    if (key !== "updated_at" && key in body) {
       updateData[key] = body[key];
     }
   }
@@ -40,6 +40,12 @@ function sanitizeUpdateData(body: any): Record<string, any> {
   updateData.updated_at = new Date().toISOString();
 
   return updateData;
+}
+
+// Validate updateData has at least one field to update
+function validateUpdateData(updateData: Record<string, any>): boolean {
+  // Check if there are any fields besides updated_at
+  return Object.keys(updateData).some((key) => key !== "updated_at");
 }
 
 export async function POST(request: NextRequest) {
@@ -66,6 +72,17 @@ export async function POST(request: NextRequest) {
 
     // Sanitize data - only include valid columns
     const updateData = sanitizeUpdateData(body);
+
+    // Guard against empty updates
+    if (!validateUpdateData(updateData)) {
+      return NextResponse.json(
+        {
+          error: "No valid fields provided to update",
+          hint: "Must include at least one of: shop_name, location_address, banner_url, logo_url",
+        },
+        { status: 400 }
+      );
+    }
 
     // Perform update
     const { data, error } = await supabase
@@ -112,15 +129,21 @@ export async function POST(request: NextRequest) {
       message: "Location updated successfully",
     });
   } catch (error) {
-    console.error("API error:", {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    console.error("🔥 SHOP-BRANDING POST API ERROR:", {
+      message: errorMessage,
+      stack: errorStack,
+      timestamp: new Date().toISOString(),
     });
 
     return NextResponse.json(
       {
         error: "Internal server error",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: errorMessage,
+        timestamp: new Date().toISOString(),
       },
       { status: 500 }
     );
@@ -176,15 +199,21 @@ export async function GET() {
       data: data || {},
     });
   } catch (error) {
-    console.error("API error:", {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
+    console.error("🔥 SHOP-BRANDING GET API ERROR:", {
+      message: errorMessage,
+      stack: errorStack,
+      timestamp: new Date().toISOString(),
     });
 
     return NextResponse.json(
       {
         error: "Internal server error",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: errorMessage,
+        timestamp: new Date().toISOString(),
       },
       { status: 500 }
     );
