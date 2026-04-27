@@ -36,6 +36,7 @@ export default function DashboardContent() {
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings">("overview");
   const [shopLocation, setShopLocation] = useState({
     name: branding.shop_name || "👟 Shoe Otah Boutique",
+    address: branding.location_address || "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
     latitude: branding.location_latitude || 8.81975,
     longitude: branding.location_longitude || 125.69423,
     zoom: branding.location_zoom || 18,
@@ -50,6 +51,7 @@ export default function DashboardContent() {
   useEffect(() => {
     setShopLocation({
       name: branding.shop_name || "👟 Shoe Otah Boutique",
+      address: branding.location_address || "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
       latitude: branding.location_latitude || 8.81975,
       longitude: branding.location_longitude || 125.69423,
       zoom: branding.location_zoom || 18,
