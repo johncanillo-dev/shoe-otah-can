@@ -34,6 +34,80 @@ interface SearchResult {
   };
 }
 
+// Helper to safely parse API responses
+async function parseApiResponse(response: Response): Promise<{ error?: string; message?: string; [key: string]: any }> {
+  const contentType = response.headers.get("content-type");
+
+  // Try to parse as JSON if content-type indicates JSON
+  if (contentType?.includes("application/json")) {
+    try {
+      const json = await response.json();
+      return json;
+    } catch (jsonErr) {
+      // JSON parsing failed - fall back to text
+      console.warn("Failed to parse JSON response:", jsonErr);
+      try {
+        const text = await response.text();
+        return {
+          error: "Invalid server response",
+          details: text || "(empty response body)",
+        };
+      } catch (textErr) {
+        return {
+          error: "Failed to read response",
+          details: "Unable to parse server response as JSON or text",
+        };
+      }
+    }
+  }
+
+  // Not JSON - try to get text
+  try {
+    const text = await response.text();
+    if (!text) {
+      return {
+        error: "Empty response from server",
+        details: `HTTP ${response.status}`,
+      };
+    }
+    return {
+      error: "Unexpected response format",
+      details: text,
+    };
+  } catch (textErr) {
+    return {
+      error: "Failed to read response",
+      details: `HTTP ${response.status}`,
+    };
+  }
+}
+
+// Helper to extract readable error message
+function getErrorMessage(errorData: any): string {
+  if (!errorData) {
+    return "Unknown error";
+  }
+
+  // Try multiple error fields in order of preference
+  if (typeof errorData.error === "string" && errorData.error.trim()) {
+    return errorData.error;
+  }
+  if (typeof errorData.message === "string" && errorData.message.trim()) {
+    return errorData.message;
+  }
+  if (typeof errorData.details === "string" && errorData.details.trim()) {
+    return errorData.details;
+  }
+
+  // Last resort: try to convert to string (avoid logging empty {})
+  const str = String(errorData);
+  if (str && str !== "[object Object]") {
+    return str;
+  }
+
+  return "Unknown error";
+}
+
 export default function ShopLocationSearchEditor() {
   const [shopLocation, setShopLocation] = useState<ShopLocation>({
     latitude: 8.81975,
@@ -78,7 +152,7 @@ export default function ShopLocationSearchEditor() {
         // Try to load from API first (server-side)
         const response = await fetch("/api/admin/shop-branding");
         if (response.ok) {
-          const result = await response.json();
+          const result = await parseApiResponse(response);
           if (result.data && result.data.location_latitude) {
             const location: ShopLocation = {
               latitude: result.data.location_latitude || 8.81975,
@@ -94,7 +168,7 @@ export default function ShopLocationSearchEditor() {
           }
         }
       } catch (err) {
-        console.warn("Could not load from API, using localStorage:", err);
+        console.warn("Could not load from API, using localStorage:", err instanceof Error ? err.message : String(err));
       }
 
       // Fallback to localStorage
@@ -105,7 +179,7 @@ export default function ShopLocationSearchEditor() {
           setShopLocation(parsed);
           setEditingLocation(parsed);
         } catch (e) {
-          console.error("Failed to load shop location from localStorage:", e);
+          console.error("Failed to load shop location from localStorage:", e instanceof Error ? e.message : String(e));
         }
       }
     };
@@ -136,10 +210,23 @@ export default function ShopLocationSearchEditor() {
           searchQuery
         )}&limit=8`
       );
-      const results = await response.json();
-      setSearchResults(results);
+      
+      if (!response.ok) {
+        console.warn(`Nominatim search failed with status ${response.status}`);
+        setSearchResults([]);
+        return;
+      }
+
+      try {
+        const results = await response.json();
+        setSearchResults(Array.isArray(results) ? results : []);
+      } catch (jsonErr) {
+        console.warn("Failed to parse Nominatim response as JSON:", jsonErr);
+        setSearchResults([]);
+      }
     } catch (error) {
-      console.error("Search error:", error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error("Search error:", errorMsg);
       setSearchResults([]);
     }
     setIsSearching(false);
@@ -178,27 +265,39 @@ export default function ShopLocationSearchEditor() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          location_latitude: editingLocation.latitude,
-          location_longitude: editingLocation.longitude,
-          location_address: editingLocation.address,
-          location_zoom: editingLocation.zoom,
-          location_image_url: editingLocation.image || null,
+          id: 1, // Required: shop_branding table has a single row with id=1
           shop_name: editingLocation.name,
+          location_address: editingLocation.address,
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("API error:", errorData);
-        setSaveMessage({ type: "error", text: "Failed to update location. Please try again." });
+        // Safely parse response (handles JSON, text, empty responses)
+        const errorData = await parseApiResponse(response);
+        const errorMessage = getErrorMessage(errorData);
+
+        // Log with full context for debugging
+        console.error("API error response:", {
+          status: response.statusText,
+          statusCode: response.status,
+          error: errorMessage,
+          fullResponse: errorData,
+        });
+
+        setSaveMessage({ type: "error", text: `Failed to update location: ${errorMessage}` });
         return;
       }
 
-      const result = await response.json();
+      // Parse success response
+      const result = await parseApiResponse(response);
 
       if (!result.success) {
-        console.error("Save error:", result.error);
-        setSaveMessage({ type: "error", text: "Failed to update location. Please try again." });
+        const errorMessage = getErrorMessage(result);
+        console.error("Save error:", {
+          error: errorMessage,
+          fullResponse: result,
+        });
+        setSaveMessage({ type: "error", text: `Failed to update location: ${errorMessage}` });
         return;
       }
 
@@ -206,11 +305,17 @@ export default function ShopLocationSearchEditor() {
       localStorage.setItem("shop-location", JSON.stringify(editingLocation));
       setShopLocation(editingLocation);
       setIsSaved(true);
-      setSaveMessage({ type: "success", text: "✅ Location and image updated successfully! Customers will see the changes in real-time." });
+      console.log("Location saved successfully");
+      setSaveMessage({ type: "success", text: "✅ Location updated successfully! Customers will see the changes in real-time." });
       setTimeout(() => setSaveMessage(null), 4000);
     } catch (error) {
-      console.error("Save error:", error);
-      setSaveMessage({ type: "error", text: "Error saving location. Please check your connection." });
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error("Unexpected error saving location:", {
+        message: errorMsg,
+        name: error instanceof Error ? error.name : "Unknown",
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      setSaveMessage({ type: "error", text: `Error saving location: ${errorMsg}` });
     } finally {
       setIsSaving(false);
     }
