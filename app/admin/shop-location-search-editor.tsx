@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const MapComponent = dynamic(() => import("../components/map-component"), {
   ssr: false,
@@ -53,7 +52,6 @@ export default function ShopLocationSearchEditor() {
   const [showMap, setShowMap] = useState(true);
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const supabase = createSupabaseBrowserClient();
 
   // Preset locations including Shoe Otah Boutique
   const presetLocations: Record<string, ShopLocation> = {
