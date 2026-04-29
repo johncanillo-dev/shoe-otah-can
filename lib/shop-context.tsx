@@ -13,7 +13,7 @@ export interface ShopBranding {
   location_longitude?: number;
   location_address?: string;
   location_zoom?: number;
-  location_image_url?: string;
+  location_image_url?: string | null;
 }
 
 const DEFAULT_BRANDING: ShopBranding = {
@@ -32,7 +32,7 @@ const DEFAULT_BRANDING: ShopBranding = {
 interface ShopContextType {
   branding: ShopBranding;
   isLoading: boolean;
-  updateBranding: (updates: Partial<Omit<ShopBranding, "id" | "updated_at">>) => Promise<void>;
+  updateBranding: (updates: Partial<Omit<ShopBranding, "id" | "updated_at">>) => Promise<boolean>;
   refreshBranding: () => Promise<void>;
 }
 
@@ -125,54 +125,35 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
   // Update branding (upsert single row)
   const updateBranding = useCallback(
-    async (updates: Partial<Omit<ShopBranding, "id" | "updated_at">>) => {
+    async (updates: Partial<Omit<ShopBranding, "id" | "updated_at">>): Promise<boolean> => {
       try {
-        // Get existing row or create new
-        const { data: existing, error: fetchError } = await supabase
-          .from("shop_branding")
-          .select("id")
-          .limit(1)
-          .single();
+        const response = await fetch("/api/admin/shop-branding", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify(updates),
+        });
 
-        // If table doesn't exist, just update local state
-        if (fetchError?.code === "PGRST205" || fetchError?.code === "42P01") {
-          console.warn("Shop branding table not found. Update saved locally only.");
-          setBranding((prev) => ({ ...prev, ...updates }));
-          return;
-        }
+        const payload = await response.json().catch(() => null);
 
-        const row = {
-          ...updates,
-          updated_at: new Date().toISOString(),
-        };
-
-        if (existing?.id) {
-          const { error } = await supabase
-            .from("shop_branding")
-            .update(row)
-            .eq("id", existing.id);
-
-          if (error) {
-            console.error("Error updating shop branding:", error);
-            throw error;
-          }
-        } else {
-          const { error } = await supabase
-            .from("shop_branding")
-            .insert({ ...row, id: undefined });
-
-          if (error) {
-            console.error("Error inserting shop branding:", error);
-            throw error;
-          }
+        if (!response.ok || !payload?.success) {
+          const message =
+            payload?.details ||
+            payload?.error ||
+            `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
+          throw new Error(message);
         }
 
         // Optimistic update
         setBranding((prev) => ({ ...prev, ...updates, updated_at: new Date().toISOString() }));
+        return true;
       } catch (err) {
-        console.error("Failed to update shop branding:", err);
+        console.warn("Failed to update shop branding:", err instanceof Error ? err.message : err);
         // Still update locally on error for better UX
         setBranding((prev) => ({ ...prev, ...updates }));
+        return false;
       }
     },
     [supabase]
@@ -197,7 +178,7 @@ export function useShopBranding(): ShopContextType {
     return {
       branding: DEFAULT_BRANDING,
       isLoading: false,
-      updateBranding: async () => {},
+      updateBranding: async () => false,
       refreshBranding: async () => {},
     };
   }

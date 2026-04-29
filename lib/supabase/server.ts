@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
@@ -9,15 +10,18 @@ import { cookies } from "next/headers";
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabasePublishableKey =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  let supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
+  
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  }
 
   // Return null if Supabase is not configured (for demo/dev mode)
-  if (!supabaseUrl || !supabasePublishableKey) {
+  if (!supabaseUrl || !supabaseKey) {
     return null;
   }
 
-  return createServerClient(supabaseUrl, supabasePublishableKey, {
+  return createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -32,6 +36,22 @@ export async function createSupabaseServerClient() {
           // In that case, session refresh is handled by proxy.ts.
         }
       },
+    },
+  });
+}
+
+export function createSupabaseAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
   });
 }

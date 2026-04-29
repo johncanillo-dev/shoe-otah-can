@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { useShopBranding } from "@/lib/shop-context";
 
 const MapComponent = dynamic(() => import("../components/map-component"), {
   ssr: false,
@@ -18,7 +19,7 @@ interface ShopLocation {
   name: string;
   address: string;
   zoom: number;
-  image?: string;
+  image?: string | null;
 }
 
 interface SearchResult {
@@ -34,100 +35,28 @@ interface SearchResult {
   };
 }
 
-// Helper to safely parse API responses
-async function parseApiResponse(response: Response): Promise<{ error?: string; message?: string; [key: string]: any }> {
-  const contentType = response.headers.get("content-type");
-
-  // Try to parse as JSON if content-type indicates JSON
-  if (contentType?.includes("application/json")) {
-    try {
-      const json = await response.json();
-      return json;
-    } catch (jsonErr) {
-      // JSON parsing failed - fall back to text
-      console.warn("Failed to parse JSON response:", jsonErr);
-      try {
-        const text = await response.text();
-        return {
-          error: "Invalid server response",
-          details: text || "(empty response body)",
-        };
-      } catch (textErr) {
-        return {
-          error: "Failed to read response",
-          details: "Unable to parse server response as JSON or text",
-        };
-      }
-    }
-  }
-
-  // Not JSON - try to get text
-  try {
-    const text = await response.text();
-    if (!text) {
-      return {
-        error: "Empty response from server",
-        details: `HTTP ${response.status}`,
-      };
-    }
-    return {
-      error: "Unexpected response format",
-      details: text,
-    };
-  } catch (textErr) {
-    return {
-      error: "Failed to read response",
-      details: `HTTP ${response.status}`,
-    };
-  }
-}
-
-// Helper to extract readable error message
-function getErrorMessage(errorData: any): string {
-  if (!errorData) {
-    return "Unknown error";
-  }
-
-  // Try multiple error fields in order of preference
-  if (typeof errorData.error === "string" && errorData.error.trim()) {
-    return errorData.error;
-  }
-  if (typeof errorData.message === "string" && errorData.message.trim()) {
-    return errorData.message;
-  }
-  if (typeof errorData.details === "string" && errorData.details.trim()) {
-    return errorData.details;
-  }
-
-  // Last resort: try to convert to string (avoid logging empty {})
-  const str = String(errorData);
-  if (str && str !== "[object Object]") {
-    return str;
-  }
-
-  return "Unknown error";
-}
-
 export default function ShopLocationSearchEditor() {
-  const [shopLocation, setShopLocation] = useState<ShopLocation>({
-    latitude: 8.81975,
-    longitude: 125.69423,
-    name: "👟 Shoe Otah Boutique",
-    address: "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
-    zoom: 18,
-  });
+  const { branding, isLoading: brandingLoading, updateBranding, refreshBranding } = useShopBranding();
 
-  const [editingLocation, setEditingLocation] = useState<ShopLocation>(shopLocation);
+  const defaultLocation: ShopLocation = {
+    latitude: 8.632396,
+    longitude: 126.315832,
+    name: "Shoe Otah Boutique",
+    address: "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur, Philippines",
+    zoom: 18,
+  };
+
+  const [shopLocation, setShopLocation] = useState<ShopLocation>(defaultLocation);
+  const [editingLocation, setEditingLocation] = useState<ShopLocation>(defaultLocation);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isSaved, setIsSaved] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [showMap, setShowMap] = useState(true);
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Preset locations including Shoe Otah Boutique
   const presetLocations: Record<string, ShopLocation> = {
     shoe_otah: {
       latitude: 8.632396,
@@ -145,47 +74,29 @@ export default function ShopLocationSearchEditor() {
     },
   };
 
-  // Load location from Supabase on mount, fallback to localStorage
   useEffect(() => {
-    const loadLocation = async () => {
-      try {
-        // Try to load from API first (server-side)
-        const response = await fetch("/api/admin/shop-branding");
-        if (response.ok) {
-          const result = await parseApiResponse(response);
-          if (result.data && result.data.location_latitude) {
-            const location: ShopLocation = {
-              latitude: result.data.location_latitude || 8.81975,
-              longitude: result.data.location_longitude || 125.69423,
-              name: result.data.shop_name || "👟 Shoe Otah Boutique",
-              address: result.data.location_address || "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
-              zoom: result.data.location_zoom || 18,
-              image: result.data.location_image_url || undefined,
-            };
-            setShopLocation(location);
-            setEditingLocation(location);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn("Could not load from API, using localStorage:", err instanceof Error ? err.message : String(err));
-      }
+    if (brandingLoading || !branding) return;
 
-      // Fallback to localStorage
-      const saved = localStorage.getItem("shop-location");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setShopLocation(parsed);
-          setEditingLocation(parsed);
-        } catch (e) {
-          console.error("Failed to load shop location from localStorage:", e instanceof Error ? e.message : String(e));
-        }
-      }
+    const location: ShopLocation = {
+      latitude: branding.location_latitude ?? defaultLocation.latitude,
+      longitude: branding.location_longitude ?? defaultLocation.longitude,
+      name: branding.shop_name || defaultLocation.name,
+      address: branding.location_address || defaultLocation.address,
+      zoom: branding.location_zoom ?? defaultLocation.zoom,
+      image: branding.location_image_url || undefined,
     };
 
-    loadLocation();
-  }, []);
+    setShopLocation(location);
+
+    if (!isInitialized) {
+      setEditingLocation(location);
+      setIsInitialized(true);
+    } else if (isSaved) {
+      setEditingLocation(location);
+    }
+  }, [branding, brandingLoading, isInitialized, isSaved]);
+
+  // Data loading is handled by ShopContext; no need for redundant API/localStorage fetch
 
   const handleQuickPreset = (presetKey: string) => {
     const preset = presetLocations[presetKey];
@@ -204,7 +115,6 @@ export default function ShopLocationSearchEditor() {
 
     setIsSearching(true);
     try {
-      // Use Nominatim (OpenStreetMap) for geocoding - No API key required
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           searchQuery
@@ -258,56 +168,28 @@ export default function ShopLocationSearchEditor() {
     setSaveMessage(null);
 
     try {
-      // Call server-side API to save to Supabase (bypasses RLS issues)
-      const response = await fetch("/api/admin/shop-branding", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: 1, // Required: shop_branding table has a single row with id=1
-          shop_name: editingLocation.name,
-          location_address: editingLocation.address,
-        }),
+      const success = await updateBranding({
+        shop_name: editingLocation.name,
+        location_address: editingLocation.address,
+        location_latitude: editingLocation.latitude,
+        location_longitude: editingLocation.longitude,
+        location_zoom: editingLocation.zoom,
+        location_image_url: editingLocation.image || null,
       });
 
-      if (!response.ok) {
-        // Safely parse response (handles JSON, text, empty responses)
-        const errorData = await parseApiResponse(response);
-        const errorMessage = getErrorMessage(errorData);
-
-        // Log with full context for debugging
-        console.error("API error response:", {
-          status: response.statusText,
-          statusCode: response.status,
-          error: errorMessage,
-          fullResponse: errorData,
-        });
-
-        setSaveMessage({ type: "error", text: `Failed to update location: ${errorMessage}` });
+      if (!success) {
+        setSaveMessage({ type: "error", text: "Failed to update location. Please check your Supabase service role configuration and database policies." });
         return;
       }
 
-      // Parse success response
-      const result = await parseApiResponse(response);
-
-      if (!result.success) {
-        const errorMessage = getErrorMessage(result);
-        console.error("Save error:", {
-          error: errorMessage,
-          fullResponse: result,
-        });
-        setSaveMessage({ type: "error", text: `Failed to update location: ${errorMessage}` });
-        return;
-      }
-
-      // Also save to localStorage as backup
       localStorage.setItem("shop-location", JSON.stringify(editingLocation));
       setShopLocation(editingLocation);
       setIsSaved(true);
       console.log("Location saved successfully");
-      setSaveMessage({ type: "success", text: "✅ Location updated successfully! Customers will see the changes in real-time." });
+      setSaveMessage({ type: "success", text: "✅ Location and image updated successfully! Customers will see the changes in real-time." });
       setTimeout(() => setSaveMessage(null), 4000);
+
+      await refreshBranding();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Unexpected error saving location:", {
@@ -342,6 +224,7 @@ export default function ShopLocationSearchEditor() {
         </h2>
         <p style={{ margin: 0, color: "#666", fontSize: "0.95rem" }}>
           Search and set your shop location with live map preview
+          {brandingLoading && <span style={{ marginLeft: "0.5rem", color: "#2196f3" }}>⏳ Loading...</span>}
         </p>
       </div>
 
@@ -412,8 +295,8 @@ export default function ShopLocationSearchEditor() {
               <button
                 onClick={() =>
                   handleSelectPreset({
-                    latitude: 8.81975,
-                    longitude: 125.69423,
+                    latitude: 8.632396,
+                    longitude: 126.315832,
                     name: "👟 Shoe Otah Boutique",
                     address: "Purok 4, Poblacion, Sibagat, 8503 Agusan del Sur",
                     zoom: 18,
@@ -454,36 +337,38 @@ export default function ShopLocationSearchEditor() {
                   backgroundColor: "white",
                 }}
               >
-                {searchResults.map((result, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSelectResult(result)}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "0.75rem 1rem",
-                      border: "none",
-                      borderBottom: idx < searchResults.length - 1 ? "1px solid #e0d5cc" : "none",
-                      backgroundColor: selectedResult === result ? "#e3f2fd" : "white",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#f5f5f5";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor =
-                        selectedResult === result ? "#e3f2fd" : "white";
-                    }}
-                  >
-                    <div style={{ fontWeight: "600", fontSize: "0.9rem", color: "#2c2c2c" }}>
-                      📍 {result.display_name.split(",")[0]}
-                    </div>
-                    <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>
-                      {result.display_name.substring(0, 80)}
-                    </div>
-                  </button>
-                ))}
+                {searchResults.map((result, idx) => {
+                  const isSelected = selectedResult?.lat === result.lat && selectedResult?.lon === result.lon;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => handleSelectResult(result)}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "0.75rem 1rem",
+                        border: "none",
+                        borderBottom: idx < searchResults.length - 1 ? "1px solid #e0d5cc" : "none",
+                        backgroundColor: isSelected ? "#e3f2fd" : "white",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#f5f5f5";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = isSelected ? "#e3f2fd" : "white";
+                      }}
+                    >
+                      <div style={{ fontWeight: "600", fontSize: "0.9rem", color: "#2c2c2c" }}>
+                        📍 {result.display_name.split(",")[0]}
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>
+                        {result.display_name.substring(0, 80)}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </form>
@@ -519,7 +404,7 @@ export default function ShopLocationSearchEditor() {
               💡 Paste a direct image URL from your image hosting service
             </p>
 
-            {/* Image Preview - Ultra Compact */}
+            {/* Image Preview */}
             {editingLocation.image && (
               <div
                 style={{
@@ -814,109 +699,51 @@ export default function ShopLocationSearchEditor() {
                 fontSize: "0.9rem",
               }}
             >
-              ⚠️ You have unsaved changes
+              ⚠️ You have unsaved changes. Click Save Location to update your shop location.
             </div>
           )}
         </div>
 
-        {/* Right: Map Preview */}
-        {/* Right: Map Preview and Image */}
+        {/* Right: Live Map Preview */}
         <div>
-          {/* Image Preview - Compact */}
-          <h3 style={{ margin: "0 0 0.5rem 0", color: "#2c2c2c", fontSize: "0.9rem" }}>
-            🖼️ Image Preview
-          </h3>
-          <div
+          <h3
             style={{
-              borderRadius: "6px",
-              overflow: "hidden",
-              border: "1px solid #d0c7bf",
-              height: "110px",
-              marginBottom: "0.75rem",
-              backgroundColor: "#f5f5f5",
+              marginTop: 0,
+              marginBottom: "1rem",
+              color: "#2c2c2c",
+              fontSize: "1.1rem",
             }}
           >
-            {editingLocation.image ? (
-              <img
-                src={editingLocation.image}
-                alt={editingLocation.name}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#999",
-                  fontSize: "0.85rem",
-                }}
-              >
-                No image
-              </div>
-            )}
-          </div>
-
-          <h3 style={{ margin: "0.75rem 0 0.5rem 0", color: "#2c2c2c", fontSize: "0.9rem" }}>
-            🗺️ Map Preview
+            🗺️ Live Map Preview
           </h3>
           <div
             style={{
-              borderRadius: "6px",
+              borderRadius: "10px",
               overflow: "hidden",
               border: "1px solid #d0c7bf",
-              height: "200px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
             }}
           >
             <MapComponent
               position={[editingLocation.latitude, editingLocation.longitude]}
               title={editingLocation.name}
-              height="200px"
               zoom={editingLocation.zoom}
-              showLiveTracking={false}
+              height="500px"
             />
           </div>
-          <p style={{ marginTop: "0.75rem", fontSize: "0.8rem", color: "#666", lineHeight: 1.3 }}>
-            <strong>{editingLocation.name}</strong>
-            <br />
-            {editingLocation.address}
-            <br />
-            🎯 {editingLocation.latitude.toFixed(5)}, {editingLocation.longitude.toFixed(5)}
+          <p
+            style={{
+              marginTop: "0.75rem",
+              fontSize: "0.8rem",
+              color: "#666",
+              textAlign: "center",
+            }}
+          >
+            📍 Drag the map to adjust the pin position if needed
           </p>
         </div>
-      </div>
-
-      {/* Instructions */}
-      <div
-        style={{
-          marginTop: "2rem",
-          padding: "1.5rem",
-          backgroundColor: "#e8f5e9",
-          borderRadius: "8px",
-          border: "1px solid #4caf50",
-        }}
-      >
-        <h4 style={{ margin: "0 0 1rem 0", color: "#2e7d32", fontSize: "0.95rem" }}>
-          🔍 How to Use Google Maps Style Search:
-        </h4>
-        <ol style={{ margin: 0, paddingLeft: "1.5rem", color: "#2e7d32", fontSize: "0.9rem", lineHeight: 2 }}>
-          <li><strong>Type in the search box:</strong> "Shoe Otah Boutique Sibagat" or any place name</li>
-          <li><strong>Press "Search" or Enter</strong> to find matching locations</li>
-          <li><strong>Click any result</strong> to select it and see the location on the map</li>
-          <li><strong>Fine-tune manually:</strong> Edit name, address, latitude, longitude as needed</li>
-          <li><strong>Adjust zoom level</strong> (17-18 recommended for street-level precision)</li>
-          <li><strong>Click "Save Location"</strong> to apply changes</li>
-        </ol>
-        <p style={{ margin: "1rem 0 0", color: "#2e7d32", fontSize: "0.85rem" }}>
-          💡 <strong>Tip:</strong> The search uses OpenStreetMap (same data as Google Maps). Search results are powered by Nominatim geocoding service for accurate location finding.
-        </p>
       </div>
     </div>
   );
 }
+
