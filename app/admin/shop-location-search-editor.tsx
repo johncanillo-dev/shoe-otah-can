@@ -35,6 +35,18 @@ interface SearchResult {
   };
 }
 
+const IMAGE_ERROR_PLACEHOLDER =
+  "data:image/svg+xml;charset=UTF-8," +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100" role="img" aria-label="Image unavailable">
+      <rect width="200" height="100" rx="10" fill="#f6f0ea" />
+      <rect x="14" y="14" width="172" height="72" rx="8" fill="#ffffff" stroke="#d8c9bc" />
+      <circle cx="58" cy="45" r="12" fill="#e2d4c6" />
+      <path d="M38 72l26-26 16 16 14-12 28 22z" fill="#c9b39f" />
+      <text x="100" y="86" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#8a6f5a">Image unavailable</text>
+    </svg>
+  `);
+
 export default function ShopLocationSearchEditor() {
   const { branding, isLoading: brandingLoading, updateBranding, refreshBranding } = useShopBranding();
 
@@ -168,7 +180,7 @@ export default function ShopLocationSearchEditor() {
     setSaveMessage(null);
 
     try {
-      const success = await updateBranding({
+      const result = await updateBranding({
         shop_name: editingLocation.name,
         location_address: editingLocation.address,
         location_latitude: editingLocation.latitude,
@@ -177,8 +189,8 @@ export default function ShopLocationSearchEditor() {
         location_image_url: editingLocation.image || null,
       });
 
-      if (!success) {
-        setSaveMessage({ type: "error", text: "Failed to update location. Please check your Supabase service role configuration and database policies." });
+      if (!result.success) {
+        setSaveMessage({ type: "error", text: result.message || "Failed to update location." });
         return;
       }
 
@@ -186,10 +198,17 @@ export default function ShopLocationSearchEditor() {
       setShopLocation(editingLocation);
       setIsSaved(true);
       console.log("Location saved successfully");
-      setSaveMessage({ type: "success", text: "✅ Location and image updated successfully! Customers will see the changes in real-time." });
+      setSaveMessage({
+        type: "success",
+        text: result.persisted
+          ? "✅ Location and image updated successfully! Customers will see the changes in real-time."
+          : "✅ Location saved locally in this browser. Add SUPABASE_SERVICE_ROLE_KEY to sync changes to Supabase.",
+      });
       setTimeout(() => setSaveMessage(null), 4000);
 
-      await refreshBranding();
+      if (result.persisted) {
+        await refreshBranding();
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error("Unexpected error saving location:", {
@@ -425,8 +444,10 @@ export default function ShopLocationSearchEditor() {
                     objectFit: "cover",
                   }}
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src =
-                      "https://via.placeholder.com/200x100?text=Image+Error";
+                    const imageElement = e.currentTarget;
+                    if (imageElement.src !== IMAGE_ERROR_PLACEHOLDER) {
+                      imageElement.src = IMAGE_ERROR_PLACEHOLDER;
+                    }
                   }}
                 />
               </div>

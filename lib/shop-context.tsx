@@ -32,11 +32,35 @@ const DEFAULT_BRANDING: ShopBranding = {
 interface ShopContextType {
   branding: ShopBranding;
   isLoading: boolean;
-  updateBranding: (updates: Partial<Omit<ShopBranding, "id" | "updated_at">>) => Promise<boolean>;
+  updateBranding: (
+    updates: Partial<Omit<ShopBranding, "id" | "updated_at">>
+  ) => Promise<{ success: boolean; persisted: boolean; message?: string }>;
   refreshBranding: () => Promise<void>;
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
+const SHOP_BRANDING_STORAGE_KEY = "shop-branding";
+
+function readLocalBranding(): ShopBranding | null {
+  try {
+    const raw = localStorage.getItem(SHOP_BRANDING_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    return JSON.parse(raw) as ShopBranding;
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalBranding(branding: ShopBranding) {
+  try {
+    localStorage.setItem(SHOP_BRANDING_STORAGE_KEY, JSON.stringify(branding));
+  } catch {
+    // Ignore storage failures and keep the in-memory state updated.
+  }
+}
 
 export function ShopProvider({ children }: { children: ReactNode }) {
   const [branding, setBranding] = useState<ShopBranding>(DEFAULT_BRANDING);
@@ -68,15 +92,17 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       }
 
       if (data) {
-        setBranding(data as ShopBranding);
+        const nextBranding = data as ShopBranding;
+        setBranding(nextBranding);
+        saveLocalBranding(nextBranding);
       } else {
-        // No data found, use defaults
-        setBranding(DEFAULT_BRANDING);
+        const localBranding = readLocalBranding();
+        setBranding(localBranding || DEFAULT_BRANDING);
       }
     } catch (err) {
       console.error("Failed to fetch shop branding:", err);
-      // Always fall back to defaults on error
-      setBranding(DEFAULT_BRANDING);
+      const localBranding = readLocalBranding();
+      setBranding(localBranding || DEFAULT_BRANDING);
     }
   }, [supabase]);
 
@@ -125,7 +151,9 @@ export function ShopProvider({ children }: { children: ReactNode }) {
 
   // Update branding (upsert single row)
   const updateBranding = useCallback(
-    async (updates: Partial<Omit<ShopBranding, "id" | "updated_at">>): Promise<boolean> => {
+    async (
+      updates: Partial<Omit<ShopBranding, "id" | "updated_at">>
+    ): Promise<{ success: boolean; persisted: boolean; message?: string }> => {
       try {
         const response = await fetch("/api/admin/shop-branding", {
           method: "POST",
@@ -137,26 +165,36 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         });
 
         const payload = await response.json().catch(() => null);
+        const message =
+          payload?.details ||
+          payload?.error ||
+          `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
 
-        if (!response.ok || !payload?.success) {
-          const message =
-            payload?.details ||
-            payload?.error ||
-            `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
-          throw new Error(message);
+        const nextBranding = {
+          ...branding,
+          ...updates,
+          updated_at: new Date().toISOString(),
+        } as ShopBranding;
+
+        if (response.ok && payload?.success) {
+          setBranding(nextBranding);
+          saveLocalBranding(nextBranding);
+          return { success: true, persisted: true, message: payload?.message };
         }
 
-        // Optimistic update
-        setBranding((prev) => ({ ...prev, ...updates, updated_at: new Date().toISOString() }));
-        return true;
+        if (payload?.code === "CONFIG" || payload?.fallback === true) {
+          setBranding(nextBranding);
+          saveLocalBranding(nextBranding);
+          return { success: true, persisted: false, message };
+        }
+
+        throw new Error(message);
       } catch (err) {
         console.warn("Failed to update shop branding:", err instanceof Error ? err.message : err);
-        // Still update locally on error for better UX
-        setBranding((prev) => ({ ...prev, ...updates }));
-        return false;
+        return { success: false, persisted: false, message: err instanceof Error ? err.message : String(err) };
       }
     },
-    [supabase]
+    [branding, supabase]
   );
 
   const refreshBranding = useCallback(async () => {
@@ -178,7 +216,7 @@ export function useShopBranding(): ShopContextType {
     return {
       branding: DEFAULT_BRANDING,
       isLoading: false,
-      updateBranding: async () => false,
+      updateBranding: async () => ({ success: false, persisted: false }),
       refreshBranding: async () => {},
     };
   }

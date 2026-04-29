@@ -40,6 +40,24 @@ async function getAdminClient() {
   return supabase;
 }
 
+function configFallbackResponse(action: "read" | "write") {
+  return NextResponse.json(
+    {
+      success: false,
+      error: "Supabase service role not configured",
+      details:
+        action === "write"
+          ? "Set SUPABASE_SERVICE_ROLE_KEY in .env.local to persist branding changes to Supabase. Until then, the UI can only save locally in this browser."
+          : "Set SUPABASE_SERVICE_ROLE_KEY in .env.local to read branding changes from Supabase. Until then, the UI will fall back to local defaults or browser storage.",
+      code: "CONFIG",
+      fallback: true,
+      timestamp: new Date().toISOString(),
+      data: action === "read" ? {} : undefined,
+    },
+    { status: 200 }
+  );
+}
+
 /* ----------------------------- POST ----------------------------- */
 export async function POST(request: NextRequest) {
   const requestId = Date.now();
@@ -49,12 +67,7 @@ export async function POST(request: NextRequest) {
     // 1) Admin Supabase client with service role access
     const supabase = await getAdminClient();
     if (!supabase) {
-      return jsonError(
-        "Supabase service role not configured",
-        "Set SUPABASE_SERVICE_ROLE_KEY in .env.local so the admin API can write branding changes.",
-        "CONFIG",
-        500
-      );
+      return configFallbackResponse("write");
     }
 
     // 2) Parse body
@@ -144,12 +157,7 @@ export async function GET() {
   try {
     const supabase = await getAdminClient();
     if (!supabase) {
-      return jsonError(
-        "Supabase service role not configured",
-        "Set SUPABASE_SERVICE_ROLE_KEY in .env.local so the admin API can read branding changes.",
-        "CONFIG",
-        500
-      );
+      return configFallbackResponse("read");
     }
 
     const { data, error: err } = await supabase
