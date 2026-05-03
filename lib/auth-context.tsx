@@ -35,7 +35,7 @@ interface AuthContextType {
   register: (email: string, password: string, name: string, city?: string) => Promise<{ success: boolean; error?: string }>;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  adminLogin: (email: string, password: string) => { success: boolean; error?: string };
+  adminLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   adminLogout: () => void;
   deleteUser: (userId: string) => void;
   updateUserProfile: (user: User) => void;
@@ -93,13 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   .maybeSingle() as any);
 
 if (sessionError) {
-  console.error("Session fetch error:", sessionError);
   logout();
   return;
 }
 
 if (!sessionData || !sessionData.is_active) {
-  console.log("Session invalid or expired");
   logout();
   return;
 }
@@ -132,7 +130,6 @@ localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
         }
       }
     } catch (error) {
-      console.error("Error loading user from Supabase:", error);
     }
   };
 
@@ -160,7 +157,6 @@ localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
             }
           }
         } catch (e) {
-          console.error("Failed to parse stored user:", e);
           localStorage.removeItem(STORAGE_KEY);
           localStorage.removeItem(ADMIN_KEY);
           setIsAdmin(false);
@@ -174,7 +170,6 @@ localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
         try {
           setAllUsers(JSON.parse(storedAllUsers));
         } catch (e) {
-          console.error("Failed to parse all users:", e);
         }
       }
 
@@ -224,7 +219,6 @@ localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
         .eq("email", email.toLowerCase()) as any);
 
       if (checkError) {
-        console.error("Error checking email:", checkError);
         return { success: false, error: "Failed to check email. Please try again." };
       }
 
@@ -251,7 +245,6 @@ localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
       ]) as any);
 
       if (userInsertError) {
-        console.error("Error creating user:", userInsertError);
         return { success: false, error: "Failed to create account. Please try again." };
       }
 
@@ -279,11 +272,9 @@ localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
           }]);
 
         if (sessionError) {
-          console.warn("Warning: Session creation failed, but user was created:", sessionError);
           // Don't return error - user is still created successfully
         }
       } catch (sessionError) {
-        console.warn("Warning: Could not create session:", sessionError);
         // Don't block registration if session fails
       }
 
@@ -308,10 +299,8 @@ localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
       setAllUsers(updated);
       localStorage.setItem(ALL_USERS_KEY, JSON.stringify(updated));
 
-      console.log("✅ User registered successfully");
       return { success: true };
     } catch (error) {
-      console.error("Registration error:", error);
       return { success: false, error: "Registration failed. Please try again." };
     }
   };
@@ -347,7 +336,6 @@ try {
 
   // 🔴 Handle real database error only
   if (userError) {
-    console.error("Error finding user:", userError);
     return { success: false, error: "Failed to login. Please try again." };
   }
 
@@ -391,10 +379,8 @@ try {
             }]);
 
           if (sessionError) {
-            console.warn("Warning: Session creation failed, but login was successful:", sessionError);
           }
         } catch (sessionError) {
-          console.warn("Warning: Could not create session:", sessionError);
         }
 
         // Create user session
@@ -427,11 +413,9 @@ try {
 
         return { success: true };
       } catch (error) {
-        console.error("Supabase login error:", error);
         return { success: false, error: "Login failed. Please check your credentials." };
       }
     } catch (error) {
-      console.error("Login error:", error);
       return { success: false, error: "Login failed. Please try again." };
     }
   };
@@ -448,7 +432,6 @@ try {
           .update({ is_active: false })
           .eq("session_token", sessionToken);
       } catch (error) {
-        console.error("Error deactivating session:", error);
       }
     }
 
@@ -459,7 +442,7 @@ try {
     localStorage.removeItem(ADMIN_KEY);
   };
 
-  const adminLogin = (email: string, password: string): { success: boolean; error?: string } => {
+const adminLogin = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     // Admin must use the admin email
     if (email.toLowerCase() !== ADMIN_EMAIL) {
       return { success: false, error: "Invalid admin email" };
@@ -478,20 +461,101 @@ try {
       return { success: false, error: "Incorrect admin password" };
     }
 
-    // Create admin user session
-    const adminUser: User = {
-      id: "admin-001",
-      email: ADMIN_EMAIL,
-      name: "Administrator",
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      // First, ensure admin user exists in the database
+      const ADMIN_USER_ID = "admin-001";
+      
+      // Check if admin user already exists
+      const { data: existingAdmin, error: checkError } = await (supabase
+        .from("users")
+        .select("id, is_active")
+        .eq("email", ADMIN_EMAIL)
+        .maybeSingle() as any);
 
-    setUser(adminUser);
-    setIsAdmin(true);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(adminUser));
-    localStorage.setItem(ADMIN_KEY, "true");
+      if (checkError) {
+      }
 
-    return { success: true };
+      let adminUserId = ADMIN_USER_ID;
+
+      // Create admin user if doesn't exist
+      if (!existingAdmin) {
+        const hashedPassword = simpleHash(DEFAULT_ADMIN_PASSWORD + ADMIN_EMAIL);
+        
+        const { error: insertError } = await (supabase
+          .from("users")
+          .insert([{
+            id: ADMIN_USER_ID,
+            email: ADMIN_EMAIL,
+            password: hashedPassword,
+            name: "Administrator",
+            created_at: new Date().toISOString(),
+            is_active: true,
+          }]) as any);
+
+        if (insertError) {
+          // Continue anyway - might already exist
+        }
+      } else {
+        adminUserId = existingAdmin.id;
+        
+        // Ensure admin is active
+        if (!existingAdmin.is_active) {
+          await (supabase
+            .from("users")
+            .update({ is_active: true })
+            .eq("id", adminUserId) as any);
+        }
+      }
+
+      // Create a session token for admin
+      const sessionToken = crypto.randomUUID 
+        ? crypto.randomUUID() 
+        : Date.now().toString() + Math.random() + "admin";
+
+      // Get device info
+      const deviceName = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop';
+      const deviceType = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mobile') ? 'mobile' : 'desktop';
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30); // 30-day session
+
+      // Create session record in database
+      try {
+        const { error: sessionError } = await supabase
+          .from("sessions")
+          .insert([{
+            user_id: adminUserId,
+            session_token: sessionToken,
+            device_name: deviceName,
+            device_type: deviceType,
+            ip_address: null,
+            expires_at: expiresAt.toISOString(),
+            is_active: true
+          }]);
+
+        if (sessionError) {
+        }
+      } catch (sessionError) {
+      }
+
+      // Create admin user session
+      const adminUser: User = {
+        id: adminUserId,
+        email: ADMIN_EMAIL,
+        name: "Administrator",
+        createdAt: new Date().toISOString(),
+        isActive: true,
+      };
+
+      setUser(adminUser);
+      setIsAdmin(true);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(adminUser));
+      localStorage.setItem(ADMIN_KEY, "true");
+      localStorage.setItem(SESSION_TOKEN_KEY, sessionToken); // Store session token!
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: "Admin login failed. Please try again." };
+    }
   };
 
   const adminLogout = () => {

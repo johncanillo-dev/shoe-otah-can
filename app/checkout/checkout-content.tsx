@@ -12,6 +12,7 @@ import {
   type CustomerDetails,
   type Address,
 } from "@/lib/order-context";
+import { sendAdminNotification, sendCustomerNotification } from "@/lib/notification-client";
 
 type CartItem = {
   id: string;
@@ -185,7 +186,35 @@ export default function CheckoutContent() {
         })
       );
 
-      await Promise.all(savePromises);
+      const savedResults = await Promise.all(savePromises);
+
+      const createdOrderIds = savedResults
+        .filter((result): result is { success: boolean; orderId?: string } => Boolean(result))
+        .map((result) => result.orderId)
+        .filter((id): id is string => Boolean(id));
+
+      const orderCount = checkoutItems.length;
+      const customerMessage =
+        orderCount === 1
+          ? "Your order has been placed successfully. We will send shipping updates soon."
+          : `Your ${orderCount} orders have been placed successfully. We will send shipping updates soon.`;
+
+      await Promise.allSettled([
+        sendCustomerNotification({
+          customerUserId: user.id,
+          title: "Order Received",
+          message: customerMessage,
+          relatedOrderId: createdOrderIds[0],
+          category: "order_created",
+        }),
+        sendAdminNotification({
+          title: "New Order Placed",
+          message: `${firstName} ${lastName} placed ${orderCount} order${orderCount > 1 ? "s" : ""}.`,
+          relatedOrderId: createdOrderIds[0],
+          category: "new_order",
+          actorUserId: user.id,
+        }),
+      ]);
 
       // Clear cart
       clearCart();

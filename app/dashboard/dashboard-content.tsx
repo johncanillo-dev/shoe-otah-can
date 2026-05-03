@@ -63,7 +63,6 @@ export default function DashboardContent() {
     const loadProducts = async () => {
       setIsLoadingProducts(true);
       const productsData = await fetchProducts();
-      console.log("✅ Dashboard: Fetched products from Supabase:", productsData.length, productsData);
       setProducts(productsData);
       setIsLoadingProducts(false);
     };
@@ -72,10 +71,9 @@ export default function DashboardContent() {
 
     const unsubscribe = subscribeToProducts(
       (updatedProducts) => {
-        console.log("🔄 Dashboard: Real-time update received:", updatedProducts.length, updatedProducts);
         setProducts(updatedProducts);
       },
-      (error) => console.error("Dashboard: Real-time subscription error:", error)
+      () => {}
     );
 
     return () => unsubscribe();
@@ -95,7 +93,6 @@ export default function DashboardContent() {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Error fetching user orders:", error);
         return;
       }
 

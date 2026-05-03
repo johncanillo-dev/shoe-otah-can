@@ -67,7 +67,6 @@ export async function POST(request: Request) {
     ]);
 
     if (error) {
-      console.error("Supabase insert error:", error);
       return Response.json(
         {
           success: false,
@@ -87,7 +86,6 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    console.error("API error:", error);
     return Response.json(
       { success: false, error: "Server error: " + String(error) },
       { status: 500 }

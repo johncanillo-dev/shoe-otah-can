@@ -30,7 +30,6 @@ const { data: userData, error } = await supabase
 
 // 🔴 Handle database error
 if (error) {
-  console.error("User fetch error:", error);
   return Response.json(
     { success: false, error: "Failed to fetch user" },
     { status: 500 }
@@ -57,7 +56,6 @@ if (!userData) {
       },
     });
   } catch (error) {
-    console.error("Get user API error:", error);
     return Response.json(
       { success: false, error: "Server error: " + String(error) },
       { status: 500 }

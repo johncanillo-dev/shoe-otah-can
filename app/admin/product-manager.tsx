@@ -67,7 +67,7 @@ export function ProductManager() {
       (updatedProducts) => {
         setProducts(updatedProducts as AdminProduct[]);
       },
-      (error) => console.error("Real-time subscription error:", error)
+      () => {}
     );
 
     return () => unsubscribe();
@@ -168,7 +168,6 @@ export function ProductManager() {
       const defaultCategory = categories.length > 0 ? categories[0] : DEFAULT_CATEGORIES[0];
       setFormData({ name: "", category: defaultCategory, price: 0, description: "", image: "" });
     } catch (error) {
-      console.error("Error saving product:", error);
       alert("Error saving product");
     } finally {
       setIsSaving(false);

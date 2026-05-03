@@ -62,7 +62,6 @@ function configFallbackResponse(action: "read" | "write") {
 export async function POST(request: NextRequest) {
   const requestId = Date.now();
   try {
-    console.log(`${LOG_PREFIX} POST #${requestId} start`);
 
     // 1) Admin Supabase client with service role access
     const supabase = await getAdminClient();
@@ -94,7 +93,6 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (fetchErr) {
-      console.error(`${LOG_PREFIX} POST #${requestId} fetch error:`, fetchErr);
       return jsonError("Database query failed", fetchErr.message, fetchErr.code, 500);
     }
 
@@ -130,7 +128,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (resultError) {
-      console.error(`${LOG_PREFIX} POST #${requestId} write error:`, {
         code: resultError.code,
         message: resultError.message,
         details: resultError.details,
@@ -139,7 +136,6 @@ export async function POST(request: NextRequest) {
       return jsonError("Database update failed", resultError.message, resultError.code, 500);
     }
 
-    console.log(`${LOG_PREFIX} POST #${requestId} success`, resultData?.id);
     return NextResponse.json({
       success: true,
       data: resultData,
@@ -147,7 +143,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`${LOG_PREFIX} POST #${requestId} CRASH:`, message);
     return jsonError("Internal server error", process.env.NODE_ENV === "development" ? message : undefined, "CRASH", 500);
   }
 }

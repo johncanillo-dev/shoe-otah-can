@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useOrder, type DatabaseOrder } from "@/lib/order-context";
+import { sendCustomerNotification } from "@/lib/notification-client";
 
 export function OrderManager() {
   const { databaseOrders, updateDatabaseOrderStatus } = useOrder();
@@ -50,11 +51,24 @@ export function OrderManager() {
   };
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+    const order = allOrders.find((item) => item.id === orderId);
     const result = await updateDatabaseOrderStatus(orderId, newStatus);
     if (result.success) {
       // local state updates via real-time subscription
       if (selectedOrder?.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus as DatabaseOrder["status"] });
+      }
+
+      if (order?.userId) {
+        await Promise.allSettled([
+          sendCustomerNotification({
+            customerUserId: order.userId,
+            title: "Order Status Updated",
+            message: `Your order ${order.id.slice(0, 8)} is now ${newStatus}.`,
+            relatedOrderId: order.id,
+            category: "order_update",
+          }),
+        ]);
       }
     } else {
       console.error("Failed to update order status:", result.error);

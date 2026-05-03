@@ -72,7 +72,6 @@ export async function POST(request: Request) {
         is_active: true,
       });
     } catch (sessionError) {
-      console.warn("Session creation failed:", sessionError);
       // ⚠️ Do NOT break login if session fails
     }
 
@@ -90,7 +89,6 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
-    console.error("Login API error:", error);
     return Response.json(
       { success: false, error: "Server error: " + String(error) },
       { status: 500 }

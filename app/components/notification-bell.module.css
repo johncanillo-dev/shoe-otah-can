@@ -1,0 +1,134 @@
+.wrapper {
+  position: relative;
+}
+
+.bellButton {
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  transition: all 0.2s ease;
+}
+
+.bellButton:hover {
+  border-color: var(--line);
+  background: #fff8f2;
+}
+
+.badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  font-weight: 700;
+}
+
+.dropdown {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  width: min(420px, 92vw);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+  z-index: 1200;
+  overflow: hidden;
+}
+
+.header {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.headerTitle {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.markAllBtn {
+  border: none;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.item {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #f2e9db;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.unread {
+  background: #fff9f5;
+}
+
+.titleRow {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.meta {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #7d7568;
+}
+
+.message {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #433e38;
+}
+
+.readBtn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.74rem;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+
+.empty {
+  padding: 1.2rem;
+  text-align: center;
+  color: #6b6459;
+  font-size: 0.9rem;
+}

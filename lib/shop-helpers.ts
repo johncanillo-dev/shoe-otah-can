@@ -23,7 +23,6 @@ export async function uploadShopImage(
     });
 
   if (uploadError) {
-    console.error("Upload error:", uploadError);
     throw new Error(`Failed to upload ${type}: ${uploadError.message}`);
   }
 
@@ -44,7 +43,6 @@ export async function uploadShopImage(
     .not("id", "is", null); // match any row
 
   if (dbError) {
-    console.error("Database update error:", dbError);
     throw new Error(`Failed to update ${type} URL: ${dbError.message}`);
   }
 
@@ -65,7 +63,6 @@ export async function fetchShopBranding() {
     .single();
 
   if (error) {
-    console.error("Error fetching shop branding:", error);
     return null;
   }
 

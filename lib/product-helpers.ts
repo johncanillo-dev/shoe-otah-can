@@ -20,13 +20,11 @@ export async function fetchProducts(): Promise<Product[]> {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching products:", error);
       return [];
     }
 
     return data || [];
   } catch (err) {
-    console.error("Error fetching products:", err);
     return [];
   }
 }
@@ -42,13 +40,11 @@ export async function fetchProductById(id: string): Promise<Product | null> {
       .single();
 
     if (error) {
-      console.error("Error fetching product:", error);
       return null;
     }
 
     return data;
   } catch (err) {
-    console.error("Error fetching product:", err);
     return null;
   }
 }
@@ -70,13 +66,11 @@ export async function addProduct(product: Omit<Product, "id" | "created_at">): P
       .single();
 
     if (error) {
-      console.error("Error adding product:", error);
       return null;
     }
 
     return data;
   } catch (err) {
-    console.error("Error adding product:", err);
     return null;
   }
 }
@@ -99,13 +93,11 @@ export async function updateProduct(id: string, updates: Partial<Product>): Prom
       .single();
 
     if (error) {
-      console.error("Error updating product:", error);
       return null;
     }
 
     return data;
   } catch (err) {
-    console.error("Error updating product:", err);
     return null;
   }
 }
@@ -120,13 +112,11 @@ export async function deleteProduct(id: string): Promise<boolean> {
       .eq("id", id);
 
     if (error) {
-      console.error("Error deleting product:", error);
       return false;
     }
 
     return true;
   } catch (err) {
-    console.error("Error deleting product:", err);
     return false;
   }
 }
@@ -155,7 +145,6 @@ export function subscribeToProducts(
       )
       .subscribe((status, err) => {
         if (err) {
-          console.error("Subscription error:", err);
           onError?.(err);
         }
       });
@@ -164,7 +153,6 @@ export function subscribeToProducts(
       supabase.removeChannel(subscription);
     };
   } catch (err) {
-    console.error("Error subscribing to products:", err);
     onError?.(err);
     return () => {};
   }

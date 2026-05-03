@@ -62,7 +62,6 @@ export default function Home() {
     const loadProducts = async () => {
       setIsLoading(true);
       const productsData = await fetchProducts();
-      console.log("✅ Fetched products from Supabase:", productsData.length, productsData);
       setProducts(productsData);
       setIsLoading(false);
     };
@@ -72,7 +71,6 @@ export default function Home() {
     // Subscribe to real-time product changes
     const unsubscribe = subscribeToProducts(
       (updatedProducts) => {
-        console.log("🔄 Real-time update received:", updatedProducts.length, updatedProducts);
         setProducts(updatedProducts);
       },
       (error) => console.error("Real-time subscription error:", error)
@@ -84,12 +82,9 @@ export default function Home() {
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
-    console.log("📊 Total products:", result.length);
-
     // Category filter (case-insensitive)
     if (activeCategory !== "All") {
       result = result.filter((p) => p.category?.toLowerCase() === activeCategory.toLowerCase());
-      console.log("📊 After category filter:", result.length);
     }
 
     // Search filter
@@ -99,12 +94,10 @@ export default function Home() {
           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.description?.toLowerCase().includes(searchQuery.toLowerCase())
       );
-      console.log("📊 After search filter:", result.length);
     }
 
     // Price filter
     result = result.filter((p) => p.price >= priceRange[0] && p.price <= priceRange[1]);
-    console.log("📊 After price filter (", priceRange[0], "-", priceRange[1], "):", result.length);
 
     return result;
   }, [activeCategory, products, searchQuery, priceRange]);
