@@ -48,7 +48,7 @@ async function getActorFromSession(request: NextRequest) {
   };
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await getActorFromSession(request);
   if (!auth.supabase) {
     return NextResponse.json({ success: false, error: auth.error }, { status: auth.status || 500 });
@@ -58,7 +58,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     return NextResponse.json({ success: false, error: auth.error }, { status: auth.status || 401 });
   }
 
-  const notificationId = params.id;
+  const { id: notificationId } = await params;
 
   const { data: notification, error: fetchError } = await auth.supabase
     .from("notifications")

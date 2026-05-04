@@ -128,11 +128,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (resultError) {
-        code: resultError.code,
-        message: resultError.message,
-        details: resultError.details,
-        hint: resultError.hint,
-      });
       return jsonError("Database update failed", resultError.message, resultError.code, 500);
     }
 
